@@ -74,10 +74,10 @@ jobs:
           login-server: ${{ env.ACR_NAME }}
           username: ${{ env.ACR_USERNAME }}
           password: ${{ env.ACR_PASSWORD }}
-      - uses: actions/cache@v3
-        with:
-          path: /tmp/devlake-build-cache-${{ matrix.platform }}
-          key: buildx-devlake-build-cache-${{ github.run_id }}-${{ matrix.platform }}
+      # - uses: actions/cache@v3
+      #   with:
+      #     path: /tmp/devlake-build-cache-${{ matrix.platform }}
+      #     key: buildx-devlake-build-cache-${{ github.run_id }}-${{ matrix.platform }}
       - name: Build and cache lake build
         uses: docker/build-push-action@v3
         with:
@@ -106,14 +106,14 @@ jobs:
           login-server: ${{ env.ACR_NAME }}
           username: ${{ env.ACR_USERNAME }}
           password: ${{ env.ACR_PASSWORD }}
-      - uses: actions/cache@v3
-        with:
-          path: /tmp/devlake-build-cache-amd64
-          key: buildx-devlake-build-cache-${{ github.run_id }}-amd64
-      - uses: actions/cache@v3
-        with:
-          path: /tmp/devlake-build-cache-arm64
-          key: buildx-devlake-build-cache-${{ github.run_id }}-arm64
+      # - uses: actions/cache@v3
+      #   with:
+      #     path: /tmp/devlake-build-cache-amd64
+      #     key: buildx-devlake-build-cache-${{ github.run_id }}-amd64
+      # - uses: actions/cache@v3
+      #   with:
+      #     path: /tmp/devlake-build-cache-arm64
+      #     key: buildx-devlake-build-cache-${{ github.run_id }}-arm64
       - name: Get push tags
         id: get_push_tags
         run: |
@@ -133,20 +133,20 @@ jobs:
           build-args: |
             TAG=${{ github.ref_name }}
             SHA=${{ steps.get_short_sha.outputs.SHORT_SHA }}
-      - name: Clear cache
-        uses: actions/github-script@v6
-        if: always()
-        with:
-          script: |
-            for (const arch of ['amd64', 'arm64']) {
-              try {
-                await github.rest.actions.deleteActionsCacheByKey({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  key: `buildx-devlake-build-cache-${context.runId}-${arch}`,
-                })
-                console.log(`Clear cache buildx-devlake-build-cache-${context.runId}-${arch}`)
-              } catch (e) {
-                console.warn(`Error clear cache buildx-devlake-build-cache-${context.runId}-${arch}: ${e}`)
-              }
-            }
+      # - name: Clear cache
+      #   uses: actions/github-script@v6
+      #   if: always()
+      #   with:
+      #     script: |
+      #       for (const arch of ['amd64', 'arm64']) {
+      #         try {
+      #           await github.rest.actions.deleteActionsCacheByKey({
+      #             owner: context.repo.owner,
+      #             repo: context.repo.repo,
+      #             key: `buildx-devlake-build-cache-${context.runId}-${arch}`,
+      #           })
+      #           console.log(`Clear cache buildx-devlake-build-cache-${context.runId}-${arch}`)
+      #         } catch (e) {
+      #           console.warn(`Error clear cache buildx-devlake-build-cache-${context.runId}-${arch}: ${e}`)
+      #         }
+      #       }
