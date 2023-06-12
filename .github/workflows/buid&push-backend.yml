@@ -35,6 +35,7 @@ jobs:
           target: builder
           tags: ${{ env.ACR_NAME }}/devlake:amd64-builder
           platforms: linux/amd64
+          builder: docker
           cache-from: ${{ env.ACR_NAME }}/devlake:amd64-builder
           cache-to: ${{ env.ACR_NAME }}/devlake:amd64-builder
   build-and-push-base:
@@ -60,6 +61,7 @@ jobs:
           target: base
           tags: ${{ env.ACR_NAME }}/devlake:base
           platforms: linux/amd64,linux/arm64
+          builder: docker
           cache-from: ${{ env.ACR_NAME }}/devlake:base
           cache-to: ${{ env.ACR_NAME }}/devlake:base
   build-devlake:
@@ -96,6 +98,7 @@ jobs:
           target: build
           tags: ${{ env.ACR_NAME }}/devlake:build-cache-${{ matrix.platform }}
           platforms: linux/${{ matrix.platform }}
+          builder: docker
           cache-from: ${{ env.ACR_NAME }}/devlake:amd64-builder
           cache-to: type=local,mode=min,dest=/tmp/devlake-build-cache-${{ matrix.platform }}
           build-args: |
@@ -144,6 +147,7 @@ jobs:
           push: true
           tags: ${{ steps.get_push_tags.outputs.TAGS }}
           platforms: linux/amd64,linux/arm64
+          builder: docker
           cache-from: |
             ${{ env.ACR_NAME }}/devlake:amd64-builder
             ${{ env.ACR_NAME }}/devlake:base
