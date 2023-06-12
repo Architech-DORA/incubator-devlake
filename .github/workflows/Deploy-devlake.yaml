@@ -1,0 +1,23 @@
+name: Deploy Application
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to deploy'
+        required: true
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+        with:
+          ref: ${{ github.event.inputs.branch }}
+      - name: rename env
+        run: mv env.example .env
+        
+      - name: Deploy Application
+        run: |
+          docker-compose up -d
