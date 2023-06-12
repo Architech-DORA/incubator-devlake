@@ -1,4 +1,4 @@
-name: Deploy Application
+name: Build & Push UI
 on:
   workflow_dispatch:
     inputs:
