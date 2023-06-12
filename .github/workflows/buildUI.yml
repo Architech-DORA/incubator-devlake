@@ -1,0 +1,36 @@
+name: Deploy Application
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to deploy'
+        required: true
+        
+env:
+  ACR_NAME: glqaacrdnclcacntest.azurecr.io
+  ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+  ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+  
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Login to Azure Container Registry
+        uses: azure/docker-login@v1
+        with:
+          login-server: ${{ env.ACR_NAME }}
+          username: ${{ env.ACR_USERNAME }}
+          password: ${{ env.ACR_PASSWORD }}
+          
+          
+      - name: Build and Push Docker image
+        uses: docker/build-push-action@v2
+        with:
+          context: ./config-ui
+          dockerfile: ./config-ui/Dockerfile
+          push: true
+          tags: ${{ env.ACR_NAME }}/devlakeUI:latest          
