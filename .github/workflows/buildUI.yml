@@ -33,4 +33,4 @@ jobs:
           context: ./config-ui
           dockerfile: ./config-ui/Dockerfile
           push: true
-          tags: ${{ env.ACR_NAME }}/devlakeUI:latest          
+          tags: ${{ env.ACR_NAME }}/devlake-frontend:latest          
