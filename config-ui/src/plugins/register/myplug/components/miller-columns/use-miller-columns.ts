@@ -19,8 +19,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { McsID, McsItem } from 'miller-columns-select';
 
-import { useProxyPrefix } from '@/hooks';
-
 import type { ScopeItemType } from '../../types';
 import * as API from '../../api';
 
@@ -35,10 +33,8 @@ export const useMillerColumns = ({ connectionId }: UseMillerColumnsProps) => {
   const [items, setItems] = useState<McsItem<ScopeItemType>[]>([]);
   const [loadedIds, setLoadedIds] = useState<McsID[]>([]);
   const [mapPage, setMapPage] = useState<MapPageType>({});
-  const prefix = useProxyPrefix({
-    plugin: 'kube_deployment',
-    connectionId,
-  });
+
+  const customPrefix = `/plugins/kube_deployment/connections/${connectionId}`;
 
   const formatDeploymentItems = (arr: any, parentId: McsID | null = null) =>
     arr.map((deployment: any) => ({
@@ -63,30 +59,26 @@ export const useMillerColumns = ({ connectionId }: UseMillerColumnsProps) => {
       } else {
         setMapPage({ ...mapPage, [`${id}`]: nextPage });
       }
-      console.log('loadeddd');
     },
     [loadedIds, mapPage],
   );
 
   useEffect(() => {
     (async () => {
-      const res = await API.getKubeNamespaces(prefix);
-      console.log(res, '__res');
+      const res = await API.getKubeNamespaces(customPrefix);
       setItems(formatNamespaceItems(res));
     })();
-  }, [prefix]);
+  }, [customPrefix]);
 
   const onExpand = useCallback(
     async (id: McsID) => {
-      console.log(id, '__id');
-      const res = await API.getKubeDeployments(prefix);
-      console.log(res, '__res');
+      const res = await API.getKubeDeployments(`${customPrefix}/${id}`);
 
       const loaded = !res.length || res.length < DEFAULT_PAGE_SIZE;
       setLoaded(loaded, id, 2);
       setItems([...items, ...formatDeploymentItems(res, id)]);
     },
-    [items, prefix],
+    [items, customPrefix],
   );
 
     
@@ -95,7 +87,6 @@ export const useMillerColumns = ({ connectionId }: UseMillerColumnsProps) => {
     () => ({
       items,
       getHasMore(id: McsID | null) {
-        console.log(!loadedIds.includes(id ?? 'root'), '___getHasMore');
         return !loadedIds.includes(id ?? 'root');
       },
       onExpand,
