@@ -20,6 +20,7 @@ import { FormGroup, InputGroup, Radio, RadioGroup } from '@blueprintjs/core';
 
 import { useEffect } from 'react';
 import * as S from './styled';
+import { DEVLAKE_ENDPOINT } from '@/config';
 
 interface Props {
   initialValues: any;
@@ -126,7 +127,7 @@ export const Auth = ({ initialValues, values, errors, setValues, setErrors, setV
 
   const defaultValues = {
     authMethod: 'AccessToken',
-    endpoint: 'http://127.0.0.1:5002/v1',
+    endpoint: `${window.location.origin}${DEVLAKE_ENDPOINT}/kube_deployment/connection/test`,
     id: 23,
     proxy: '',
     rateLimitPerHour: 0,

@@ -19,7 +19,6 @@ package api
 
 import (
 	"context"
-	"fmt"
 	"io"
 
 	"github.com/apache/incubator-devlake/core/errors"
@@ -29,7 +28,6 @@ import (
 )
 
 func Proxy(input *plugin.ApiResourceInput) (*plugin.ApiResourceOutput, errors.Error) {
-	fmt.Print("Proxy___xxx")
 	connection := &models.KubeConnection{}
 	err := connectionHelper.First(connection, input.Params)
 	if err != nil {
