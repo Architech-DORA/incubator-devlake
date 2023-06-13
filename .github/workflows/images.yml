@@ -1,4 +1,4 @@
-name: Build & Push backend
+name: Build & Push backend2
 on:
   workflow_dispatch:
     inputs:
