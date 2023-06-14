@@ -67,7 +67,7 @@ func TestConnection(input *plugin.ApiResourceInput) (*plugin.ApiResourceOutput, 
 	// fmt.Printf("connection endpoint: %v\n", connection.Endpoint)
 	// // test connection
 	// apiClient, err := helper.NewApiClient(
-	// 	context.TODO(),
+	// 	context.TODO(),json.Unmarshal([]byte(connection.Credentials), &credentials
 	// 	connection.Endpoint,
 	// 	map[string]string{
 	// 		// "Authorization": fmt.Sprintf("Bearer %v", connection.Token),
@@ -306,7 +306,12 @@ func GetDeployments(input *plugin.ApiResourceInput) (*plugin.ApiResourceOutput, 
 	}
 
 	var credentials map[string]interface{}
-	json.Unmarshal([]byte(connection.Credentials), &credentials)
+	unmarshalErr := json.Unmarshal([]byte(connection.Credentials), &credentials)
+
+	if unmarshalErr != nil {
+		return nil, errors.BadInput.New("credentials is not a valid json")
+	}
+
 	KubeAPIClient := kubeDeploymentHelper.NewKubeApiClient(credentials)
 
 	namespace := input.Params["namespace"]

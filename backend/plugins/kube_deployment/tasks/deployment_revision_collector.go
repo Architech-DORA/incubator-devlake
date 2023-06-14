@@ -85,7 +85,11 @@ func CollectKubeDeploymentRevision(taskCtx plugin.SubTaskContext) errors.Error {
 		return errors.Default.Wrap(err, "unable to serialize subtask parameters")
 	}
 	paramsString = string(paramsBytes)
-	db.AutoMigrate(&RawData{}, dal.From(table))
+	dbErr := db.AutoMigrate(&RawData{}, dal.From(table))
+
+	if dbErr != nil {
+		return errors.Default.Wrap(err, "error creating table")
+	}
 
 	incremental := false
 	if incremental {
@@ -124,10 +128,16 @@ func CollectKubeDeploymentRevision(taskCtx plugin.SubTaskContext) errors.Error {
 		}
 		var result json.RawMessage
 		byteMsg, err := json.Marshal(msg)
-		json.Unmarshal(byteMsg, &result)
+
 		if err != nil {
 			return errors.Default.Wrap(err, "Error marshalling message")
 		}
+
+		errUnmarshall := json.Unmarshal(byteMsg, &result)
+		if errUnmarshall != nil {
+			return errors.Default.Wrap(err, "Error unmarshalling message")
+		}
+
 		rows[i] = &RawData{
 			Params: paramsString,
 			Data:   result,
