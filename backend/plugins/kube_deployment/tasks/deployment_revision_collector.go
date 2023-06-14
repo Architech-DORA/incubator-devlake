@@ -5,7 +5,9 @@ this work for additional information regarding copyright ownership.
 The ASF licenses this file to You under the Apache License, Version 2.0
 (the "License"); you may not use this file except in compliance with
 the License.  You may obtain a copy of the License at
+
     http://www.apache.org/licenses/LICENSE-2.0
+
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -85,7 +87,11 @@ func CollectKubeDeploymentRevision(taskCtx plugin.SubTaskContext) errors.Error {
 		return errors.Default.Wrap(err, "unable to serialize subtask parameters")
 	}
 	paramsString = string(paramsBytes)
-	db.AutoMigrate(&RawData{}, dal.From(table))
+	dbErr := db.AutoMigrate(&RawData{}, dal.From(table))
+
+	if dbErr != nil {
+		return errors.Default.Wrap(err, "error creating table")
+	}
 
 	incremental := false
 	if incremental {
@@ -124,10 +130,16 @@ func CollectKubeDeploymentRevision(taskCtx plugin.SubTaskContext) errors.Error {
 		}
 		var result json.RawMessage
 		byteMsg, err := json.Marshal(msg)
-		json.Unmarshal(byteMsg, &result)
+
 		if err != nil {
 			return errors.Default.Wrap(err, "Error marshalling message")
 		}
+
+		errUnmarshall := json.Unmarshal(byteMsg, &result)
+		if errUnmarshall != nil {
+			return errors.Default.Wrap(err, "Error unmarshalling message")
+		}
+
 		rows[i] = &RawData{
 			Params: paramsString,
 			Data:   result,

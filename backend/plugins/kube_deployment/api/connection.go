@@ -42,7 +42,6 @@ type ReturnObject struct {
 	Credentials           map[string]interface{} `mapstructure:"credentials" json:"credentials"`
 }
 
-// TODO Please modify the following code to fit your needs
 // @Summary test kube_deployment connection
 // @Description Test kube_deployment Connection. endpoint: "https://dev.kube_deployment.com/{organization}/
 // @Tags plugins/kube_deployment
@@ -68,7 +67,7 @@ func TestConnection(input *plugin.ApiResourceInput) (*plugin.ApiResourceOutput, 
 	// fmt.Printf("connection endpoint: %v\n", connection.Endpoint)
 	// // test connection
 	// apiClient, err := helper.NewApiClient(
-	// 	context.TODO(),
+	// 	context.TODO(),json.Unmarshal([]byte(connection.Credentials), &credentials
 	// 	connection.Endpoint,
 	// 	map[string]string{
 	// 		// "Authorization": fmt.Sprintf("Bearer %v", connection.Token),
@@ -238,7 +237,11 @@ func GetConnection(input *plugin.ApiResourceInput) (*plugin.ApiResourceOutput, e
 	err := connectionHelper.First(connection, input.Params)
 
 	var credentials map[string]interface{}
-	json.Unmarshal([]byte(connection.Credentials), &credentials)
+	unmarshalErr := json.Unmarshal([]byte(connection.Credentials), &credentials)
+
+	if unmarshalErr != nil {
+		return nil, errors.BadInput.New("credentials is not a valid json")
+	}
 
 	returnObject := ReturnObject{
 		KubeConnection: *connection,
@@ -307,7 +310,12 @@ func GetDeployments(input *plugin.ApiResourceInput) (*plugin.ApiResourceOutput, 
 	}
 
 	var credentials map[string]interface{}
-	json.Unmarshal([]byte(connection.Credentials), &credentials)
+	unmarshalErr := json.Unmarshal([]byte(connection.Credentials), &credentials)
+
+	if unmarshalErr != nil {
+		return nil, errors.BadInput.New("credentials is not a valid json")
+	}
+
 	KubeAPIClient := kubeDeploymentHelper.NewKubeApiClient(credentials)
 
 	namespace := input.Params["namespace"]

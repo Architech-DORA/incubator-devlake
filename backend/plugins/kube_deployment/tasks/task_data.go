@@ -22,7 +22,6 @@ import (
 
 	"github.com/apache/incubator-devlake/core/errors"
 	"github.com/apache/incubator-devlake/core/plugin"
-	"github.com/apache/incubator-devlake/helpers/pluginhelper/api"
 	helper "github.com/apache/incubator-devlake/helpers/pluginhelper/api"
 	kubeDeploymentHelper "github.com/apache/incubator-devlake/plugins/kube_deployment/helper"
 )
@@ -47,7 +46,7 @@ type KubeDeploymentOptions struct {
 
 type KubeDeploymentTaskData struct {
 	Options          *KubeDeploymentOptions
-	ApiClient        *api.ApiAsyncClient
+	ApiClient        *helper.ApiAsyncClient
 	KubeAPIClient    *kubeDeploymentHelper.KubeApiClient
 	CreatedDateAfter *time.Time
 }
@@ -64,7 +63,7 @@ func DecodeAndValidateTaskOptions(options map[string]interface{}) (*KubeDeployme
 }
 
 // NOT BEING USED
-func CreateRawDataSubTaskArgs(taskCtx plugin.SubTaskContext, rawTable string) (*api.RawDataSubTaskArgs, *KubeDeploymentTaskData) {
+func CreateRawDataSubTaskArgs(taskCtx plugin.SubTaskContext, rawTable string) (*helper.RawDataSubTaskArgs, *KubeDeploymentTaskData) {
 	data := taskCtx.GetData().(*KubeDeploymentTaskData)
 	filteredData := *data
 	filteredData.Options = &KubeDeploymentOptions{}
@@ -72,7 +71,7 @@ func CreateRawDataSubTaskArgs(taskCtx plugin.SubTaskContext, rawTable string) (*
 	var params = KubeDeploymentApiParams{
 		ConnectionId: data.Options.ConnectionId,
 	}
-	rawDataSubTaskArgs := &api.RawDataSubTaskArgs{
+	rawDataSubTaskArgs := &helper.RawDataSubTaskArgs{
 		Ctx:    taskCtx,
 		Params: params,
 		Table:  rawTable,
