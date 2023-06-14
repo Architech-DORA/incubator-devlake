@@ -237,7 +237,11 @@ func GetConnection(input *plugin.ApiResourceInput) (*plugin.ApiResourceOutput, e
 	err := connectionHelper.First(connection, input.Params)
 
 	var credentials map[string]interface{}
-	json.Unmarshal([]byte(connection.Credentials), &credentials)
+	unmarshalErr := json.Unmarshal([]byte(connection.Credentials), &credentials)
+
+	if unmarshalErr != nil {
+		return nil, errors.BadInput.New("credentials is not a valid json")
+	}
 
 	returnObject := ReturnObject{
 		KubeConnection: *connection,
