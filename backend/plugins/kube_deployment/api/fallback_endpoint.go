@@ -1,3 +1,9 @@
+/*
+This provides a fallback endpoint to be consumed by the http client by devlake.
+
+Author: Architech
+*/
+
 package api
 
 import (
