@@ -1,4 +1,7 @@
 name: Dockerhub Image build and push
+env:
+  DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USER }}
+  DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 on:
   workflow_dispatch:
     inputs:
@@ -18,8 +21,8 @@ jobs:
       - name: Login to DockerHub
         uses: docker/login-action@v2
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ env.DOCKERHUB_TOKEN }}
       - name: Build and push lake image
         uses: docker/build-push-action@v3
         with:
@@ -42,8 +45,8 @@ jobs:
       - name: Login to DockerHub
         uses: docker/login-action@v2
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ env.DOCKERHUB_TOKEN }}
       - name: Build and push lake image
         uses: docker/build-push-action@v3
         with:
@@ -73,8 +76,8 @@ jobs:
       - name: Login to DockerHub
         uses: docker/login-action@v2
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ env.DOCKERHUB_TOKEN }}
       - uses: actions/cache@v3
         with:
           path: /tmp/devlake-build-cache-${{ matrix.platform }}
@@ -108,8 +111,8 @@ jobs:
       - name: Login to DockerHub
         uses: docker/login-action@v2
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ env.DOCKERHUB_TOKEN }}
       - uses: actions/cache@v3
         with:
           path: /tmp/devlake-build-cache-amd64
@@ -181,8 +184,8 @@ jobs:
       - name: Login to DockerHub
         uses: docker/login-action@v2
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ env.DOCKERHUB_TOKEN }}
       - name: Get push tags
         id: get_push_tags
         run: |
@@ -198,4 +201,4 @@ jobs:
           context: ${{ matrix.build.context }}
           push: true
           tags: ${{ steps.get_push_tags.outputs.TAGS }}
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64,linux/arm64        
