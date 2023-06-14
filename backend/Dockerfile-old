@@ -1,37 +1,12 @@
-# Licensed to the Apache Software Foundation (ASF) under one or more
-# contributor license agreements.  See the NOTICE file distributed with
-# this work for additional information regarding copyright ownership.
-# The ASF licenses this file to You under the Apache License, Version 2.0
-# (the "License"); you may not use this file except in compliance with
-# the License.  You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-#Apache DevLake is an effort undergoing incubation at The Apache Software
-#Foundation (ASF), sponsored by the Apache Incubator PMC.
-#
-#Incubation is required of all newly accepted projects until a further review
-#indicates that the infrastructure, communications, and decision making process
-#have stabilized in a manner consistent with other successful ASF projects.
-#
-#While incubation status is not necessarily a reflection of the completeness or stability of the code,
-#it does indicate that the project has yet to be fully endorsed by the ASF.
-
-FROM --platform=linux/amd64 debian:bullseye as debian-amd64
+FROM debian:bullseye as debian-amd64
 RUN apt-get update
 RUN apt-get install -y libssh2-1-dev libssl-dev zlib1g-dev
 
-FROM --platform=linux/arm64 debian:bullseye as debian-arm64
-RUN apt-get update
-RUN apt-get install -y libssh2-1-dev libssl-dev zlib1g-dev
+#FROM debian:bullseye as debian-arm64
+#RUN apt-get update
+#RUN apt-get install -y libssh2-1-dev libssl-dev zlib1g-dev
 
-FROM --platform=$BUILDPLATFORM golang:1.19-bullseye as builder
+FROM golang:1.19-bullseye as builder
 
 # docker build --build-arg GOPROXY=https://goproxy.io,direct -t mericodev/lake .
 ARG GOPROXY=
@@ -56,9 +31,9 @@ COPY --from=debian-amd64 /usr/include /rootfs-amd64/usr/include
 COPY --from=debian-amd64 /usr/lib/x86_64-linux-gnu /rootfs-amd64/usr/lib/x86_64-linux-gnu
 COPY --from=debian-amd64 /lib/x86_64-linux-gnu /rootfs-amd64/lib/x86_64-linux-gnu
 
-COPY --from=debian-arm64 /usr/include /rootfs-arm64/usr/include
-COPY --from=debian-arm64 /usr/lib/aarch64-linux-gnu /rootfs-arm64/usr/lib/aarch64-linux-gnu
-COPY --from=debian-arm64 /lib/aarch64-linux-gnu /rootfs-arm64/lib/aarch64-linux-gnu
+#COPY --from=debian-arm64 /usr/include /rootfs-arm64/usr/include
+#COPY --from=debian-arm64 /usr/lib/aarch64-linux-gnu /rootfs-arm64/usr/lib/aarch64-linux-gnu
+#COPY --from=debian-arm64 /lib/aarch64-linux-gnu /rootfs-arm64/lib/aarch64-linux-gnu
 
 RUN for arch in aarch64 x86_64 ; do \
         mkdir -p /tmp/build/${arch} && cd /tmp/build/${arch} && \
@@ -84,9 +59,9 @@ WORKDIR /app
 COPY . /app
 ENV GOBIN=/app/bin
 
-ARG TARGETPLATFORM
-ARG TAG=
-ARG SHA=
+ARG TARGETPLATFORM=x86_64
+ARG TAG=devlake
+ARG SHA=sha256
 
 RUN --mount=type=cache,target=/root/.cache/go-build \
     if [ "$TARGETPLATFORM" = "linux/arm64" ] ; then \
@@ -167,4 +142,3 @@ RUN apt-get update && \
 ENTRYPOINT ["/usr/bin/tini", "--"]
 
 CMD ["lake"]
-
