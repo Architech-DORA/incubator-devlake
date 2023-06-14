@@ -1,5 +1,6 @@
 /*
-This provides a fallback endpoint to be consumed by the http client by devlake.
+This provides a fallback endpoint to be consumed by
+the http client by devlake.
 
 Author: Architech
 */

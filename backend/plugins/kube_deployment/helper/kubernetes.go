@@ -1,5 +1,6 @@
 /*
-This provides a way to create a Kubernetes clientset from a kubeconfig file.
+This provides a way to create a Kubernetes clientset
+from a kubeconfig file.
 
 Author: Architech
 */

@@ -106,7 +106,11 @@ func (p KubeDeployment) PrepareTaskData(taskCtx plugin.TaskContext, options map[
 	// Define a struct to hold the JSON data
 
 	// Convert the string to a JSON object
-	json.Unmarshal([]byte(connection.Credentials), &kubeAPIClientParams)
+	errUnmarshall := json.Unmarshal([]byte(connection.Credentials), &kubeAPIClientParams)
+
+	if errUnmarshall != nil {
+		return nil, errors.Default.Wrap(err, "Error unmarshalling message")
+	}
 
 	taskData := &tasks.KubeDeploymentTaskData{
 		Options:       op,
