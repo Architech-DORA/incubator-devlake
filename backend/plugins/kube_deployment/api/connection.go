@@ -42,7 +42,6 @@ type ReturnObject struct {
 	Credentials           map[string]interface{} `mapstructure:"credentials" json:"credentials"`
 }
 
-// TODO Please modify the following code to fit your needs
 // @Summary test kube_deployment connection
 // @Description Test kube_deployment Connection. endpoint: "https://dev.kube_deployment.com/{organization}/
 // @Tags plugins/kube_deployment

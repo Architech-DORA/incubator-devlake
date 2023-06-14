@@ -141,6 +141,9 @@ func (p KubeDeployment) ApiResources() map[string]map[string]plugin.ApiResourceH
 		"test": {
 			"POST": api.TestConnection,
 		},
+		"fallback-endpoint": { // This is a fallback endpoint for the UI to use when the plugin is not configured
+			"POST": api.FallbackEndpoint,
+		},
 		"connections": {
 			"POST": api.PostConnections,
 			"GET":  api.ListConnections,
