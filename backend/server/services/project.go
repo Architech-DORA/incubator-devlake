@@ -113,11 +113,17 @@ func GetProject(name string) (*models.ApiOutputProject, errors.Error) {
 	if name == "" {
 		return nil, errors.BadInput.New("project name is missing")
 	}
+
 	// load project
-	project, err := getProjectByName(db, name)
+	project := &models.Project{}
+	err := db.First(project, dal.Where("name = ?", name))
 	if err != nil {
-		return nil, err
+		if db.IsErrorNotFound(err) {
+			return nil, errors.NotFound.Wrap(err, fmt.Sprintf("could not find project [%s] in DB", name))
+		}
+		return nil, errors.Default.Wrap(err, "error getting project from DB")
 	}
+
 	// convert to api output
 	return makeProjectOutput(&project.BaseProject)
 }
@@ -143,7 +149,8 @@ func PatchProject(name string, body map[string]interface{}) (*models.ApiOutputPr
 		}
 	}()
 
-	project, err := getProjectByName(tx, name, dal.Lock(true, false))
+	project := &models.Project{}
+	err = tx.First(project, dal.Where("name = ?", name), dal.Lock(true, false))
 	if err != nil {
 		return nil, err
 	}
@@ -245,73 +252,6 @@ func PatchProject(name string, body map[string]interface{}) (*models.ApiOutputPr
 
 	// all good, render output
 	return makeProjectOutput(&projectInput.BaseProject)
-}
-
-// DeleteProject FIXME ...
-func DeleteProject(name string) errors.Error {
-	// verify input
-	if name == "" {
-		return errors.BadInput.New("project name is missing")
-	}
-	var err errors.Error
-	tx := db.Begin()
-	defer func() {
-		if r := recover(); r != nil || err != nil {
-			err = tx.Rollback()
-			if err != nil {
-				logger.Error(err, "DeleteProject: failed to rollback")
-			}
-		}
-	}()
-	_, err = getProjectByName(tx, name)
-	if err != nil {
-		return err
-	}
-	err = tx.Delete(&models.Project{}, dal.Where("name = ?", name))
-	if err != nil {
-		return err
-	}
-	err = tx.Delete(&crossdomain.ProjectMapping{}, dal.Where("project_name = ?", name))
-	if err != nil {
-		return err
-	}
-	err = tx.Delete(&models.ProjectMetricSetting{}, dal.Where("project_name = ?", name))
-	if err != nil {
-		return err
-	}
-	err = tx.Delete(&crossdomain.ProjectPrMetric{}, dal.Where("project_name = ?", name))
-	if err != nil {
-		return err
-	}
-	err = tx.Delete(&crossdomain.ProjectIssueMetric{}, dal.Where("project_name = ?", name))
-	if err != nil {
-		return err
-	}
-	err = tx.Commit()
-	if err != nil {
-		return err
-	}
-	bp, err := bpManager.GetDbBlueprintByProjectName(name)
-	if err != nil {
-		return err
-	}
-	err = bpManager.DeleteBlueprint(bp.ID)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func getProjectByName(tx dal.Dal, name string, additionalClauses ...dal.Clause) (*models.Project, errors.Error) {
-	project := &models.Project{}
-	err := tx.First(project, append([]dal.Clause{dal.Where("name = ?", name)}, additionalClauses...)...)
-	if err != nil {
-		if tx.IsErrorNotFound(err) {
-			return nil, errors.NotFound.Wrap(err, fmt.Sprintf("could not find project [%s] in DB", name))
-		}
-		return nil, errors.Default.Wrap(err, "error getting project from DB")
-	}
-	return project, nil
 }
 
 func refreshProjectMetrics(tx dal.Transaction, projectInput *models.ApiInputProject) errors.Error {

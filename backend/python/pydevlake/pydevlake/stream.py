@@ -66,7 +66,7 @@ class Stream:
         if self._raw_model is not None:
             return self._raw_model
 
-        table_name = self.raw_model_table
+        table_name = f'_raw_{self.plugin_name}_{self.name}'
 
         # Look for existing raw model
         for mapper in RawModel._sa_registry.mappers:
@@ -80,13 +80,8 @@ class Stream:
             __tablename__ = table_name
 
         self._raw_model = StreamRawModel
-        table = RawModel.metadata.tables[table_name]
-        table.create(session.get_bind(), checkfirst=True)
+        RawModel.metadata.create_all(session.get_bind())
         return self._raw_model
-
-    @property
-    def raw_model_table(self):
-        return f'_raw_{self.plugin_name}_{self.name}'
 
     def collect(self, state, context) -> Iterable[tuple[object, dict]]:
         pass

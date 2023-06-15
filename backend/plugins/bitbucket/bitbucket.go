@@ -42,7 +42,7 @@ func main() {
 			"connectionId": *connectionId,
 			"fullName":     *fullName,
 			"timeAfter":    *timeAfter,
-			"scopeConfig": map[string]string{
+			"transformationRules": map[string]string{
 				"deploymentPattern": *deploymentPattern,
 				"productionPattern": *productionPattern,
 			},

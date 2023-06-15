@@ -25,7 +25,6 @@ import * as S from './styled';
 
 interface Props {
   connectionId: ID;
-  disabledItems?: ScopeItemType[];
   selectedItems: ScopeItemType[];
   onChangeItems: (selectedItems: ScopeItemType[]) => void;
 }
@@ -34,11 +33,6 @@ export const PagerDutyDataScope = ({ connectionId, onChangeItems, ...props }: Pr
   const selectedItems = useMemo(
     () => props.selectedItems.map((it) => ({ id: `${it.id}`, name: it.name, data: it })),
     [props.selectedItems],
-  );
-
-  const disabledItems = useMemo(
-    () => (props.disabledItems ?? []).map((it) => ({ id: `${it.id}`, name: it.name, data: it })),
-    [props.disabledItems],
   );
 
   return (
@@ -50,7 +44,6 @@ export const PagerDutyDataScope = ({ connectionId, onChangeItems, ...props }: Pr
         columnCount={1}
         plugin="pagerduty"
         connectionId={connectionId}
-        disabledItems={disabledItems}
         selectedItems={selectedItems}
         onChangeItems={onChangeItems}
       />

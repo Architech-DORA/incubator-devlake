@@ -18,8 +18,6 @@ limitations under the License.
 package e2e
 
 import (
-	"testing"
-
 	"github.com/apache/incubator-devlake/core/models/common"
 	"github.com/apache/incubator-devlake/core/models/domainlayer"
 	"github.com/apache/incubator-devlake/core/models/domainlayer/ticket"
@@ -27,6 +25,7 @@ import (
 	"github.com/apache/incubator-devlake/plugins/teambition/impl"
 	"github.com/apache/incubator-devlake/plugins/teambition/models"
 	"github.com/apache/incubator-devlake/plugins/teambition/tasks"
+	"testing"
 )
 
 func TestTeambitionTaskComment(t *testing.T) {
@@ -62,8 +61,9 @@ func TestTeambitionTaskComment(t *testing.T) {
 	dataflowTester.VerifyTableWithOptions(
 		ticket.IssueComment{},
 		e2ehelper.TableOptions{
-			CSVRelPath:  "./snapshot_tables/issue_comments.csv",
-			IgnoreTypes: []interface{}{domainlayer.DomainEntity{}},
+			CSVRelPath:   "./snapshot_tables/issue_comments.csv",
+			IgnoreFields: []string{"created_date", "logged_date", "started_date"},
+			IgnoreTypes:  []interface{}{domainlayer.DomainEntity{}},
 		},
 	)
 }

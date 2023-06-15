@@ -19,7 +19,7 @@ package raw
 
 import "time"
 
-type Incident struct {
+type Incidents struct {
 	// Acknowledgements corresponds to the JSON schema field "acknowledgements".
 	Acknowledgements []IncidentsAcknowledgementsElem `json:"acknowledgements,omitempty"`
 

@@ -167,7 +167,6 @@ func (s *Service) SaveBoard(boardId, boardName string) errors.Error {
 			Id: boardId,
 		},
 		Name: boardName,
-		Type: "kanban",
 	})
 }
 

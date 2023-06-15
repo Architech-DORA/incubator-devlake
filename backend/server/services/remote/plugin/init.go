@@ -28,7 +28,6 @@ import (
 
 var (
 	connectionHelper *api.ConnectionApiHelper
-	scopeHelper      *api.GenericScopeApiHelper[models.RemoteConnection, models.RemoteScope, models.RemoteTransformation]
 	basicRes         context.BasicRes
 	vld              *validator.Validate
 )

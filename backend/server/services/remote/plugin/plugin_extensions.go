@@ -19,7 +19,6 @@ package plugin
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/apache/incubator-devlake/core/dal"
 	"github.com/apache/incubator-devlake/core/errors"
@@ -55,7 +54,7 @@ func (p remoteDatasourcePlugin) MakeDataSourcePipelinePlanV200(connectionId uint
 		wrappedToolScope := p.scopeTabler.New()
 		err = api.CallDB(db.First, wrappedToolScope, dal.Where("id = ?", bpScope.Id))
 		if err != nil {
-			return nil, nil, errors.Default.Wrap(err, fmt.Sprintf("error getting scope %s", bpScope.Name))
+			return nil, nil, errors.NotFound.New("record not found")
 		}
 		toolScope := models.ScopeModel{}
 		err := wrappedToolScope.To(&toolScope)
@@ -69,8 +68,7 @@ func (p remoteDatasourcePlugin) MakeDataSourcePipelinePlanV200(connectionId uint
 		toolScopeTxRulePairs[i] = []interface{}{wrappedToolScope.Unwrap(), txRule}
 	}
 
-	// TODO: @camille: no need to pass the entities separately as they are already in the scope config (tx rule)
-	entities := []string{}
+	entities := bpScopes[0].Entities
 
 	plan_data := models.PipelineData{}
 	err = p.invoker.Call("make-pipeline", bridge.DefaultContext, toolScopeTxRulePairs, entities, connection.Unwrap()).Get(&plan_data)

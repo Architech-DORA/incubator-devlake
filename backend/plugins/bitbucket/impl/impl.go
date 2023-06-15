@@ -52,8 +52,8 @@ func (p Bitbucket) Scope() interface{} {
 	return &models.BitbucketRepo{}
 }
 
-func (p Bitbucket) ScopeConfig() interface{} {
-	return &models.BitbucketScopeConfig{}
+func (p Bitbucket) TransformationRule() interface{} {
+	return &models.BitbucketTransformationRule{}
 }
 
 func (p Bitbucket) Init(basicRes context.BasicRes) errors.Error {
@@ -204,9 +204,8 @@ func (p Bitbucket) ApiResources() map[string]map[string]plugin.ApiResourceHandle
 			"GET":    api.GetConnection,
 		},
 		"connections/:connectionId/scopes/*scopeId": {
-			"GET":    api.GetScope,
-			"PATCH":  api.UpdateScope,
-			"DELETE": api.DeleteScope,
+			"GET":   api.GetScope,
+			"PATCH": api.UpdateScope,
 		},
 		"connections/:connectionId/remote-scopes": {
 			"GET": api.RemoteScopes,
@@ -218,13 +217,13 @@ func (p Bitbucket) ApiResources() map[string]map[string]plugin.ApiResourceHandle
 			"GET": api.GetScopeList,
 			"PUT": api.PutScope,
 		},
-		"connections/:connectionId/scope_configs": {
-			"POST": api.CreateScopeConfig,
-			"GET":  api.GetScopeConfigList,
+		"connections/:connectionId/transformation_rules": {
+			"POST": api.CreateTransformationRule,
+			"GET":  api.GetTransformationRuleList,
 		},
-		"connections/:connectionId/scope_configs/:id": {
-			"PATCH": api.UpdateScopeConfig,
-			"GET":   api.GetScopeConfig,
+		"connections/:connectionId/transformation_rules/:id": {
+			"PATCH": api.UpdateTransformationRule,
+			"GET":   api.GetTransformationRule,
 		},
 	}
 }
@@ -248,12 +247,13 @@ func EnrichOptions(taskCtx plugin.TaskContext,
 		return err
 	}
 	logger := taskCtx.GetLogger()
+	// for advanced mode or others which we only have name, for bp v200, we have githubId
 	err = taskCtx.GetDal().First(&repo, dal.Where(
 		"connection_id = ? AND bitbucket_id = ?",
 		op.ConnectionId, op.FullName))
 	if err == nil {
-		if op.ScopeConfigId == 0 {
-			op.ScopeConfigId = repo.ScopeConfigId
+		if op.TransformationRuleId == 0 {
+			op.TransformationRuleId = repo.TransformationRuleId
 		}
 	} else {
 		if taskCtx.GetDal().IsErrorNotFound(err) && op.FullName != "" {
@@ -273,18 +273,18 @@ func EnrichOptions(taskCtx plugin.TaskContext,
 			return errors.Default.Wrap(err, fmt.Sprintf("fail to find repo %s", op.FullName))
 		}
 	}
-	// Set GithubScopeConfig if it's nil, this has lower priority
-	if op.BitbucketScopeConfig == nil && op.ScopeConfigId != 0 {
-		var scopeConfig models.BitbucketScopeConfig
+	// Set GithubTransformationRule if it's nil, this has lower priority
+	if op.BitbucketTransformationRule == nil && op.TransformationRuleId != 0 {
+		var transformationRule models.BitbucketTransformationRule
 		db := taskCtx.GetDal()
-		err = db.First(&scopeConfig, dal.Where("id = ?", repo.ScopeConfigId))
+		err = db.First(&transformationRule, dal.Where("id = ?", repo.TransformationRuleId))
 		if err != nil && !db.IsErrorNotFound(err) {
-			return errors.BadInput.Wrap(err, "fail to get scopeConfig")
+			return errors.BadInput.Wrap(err, "fail to get transformationRule")
 		}
-		op.BitbucketScopeConfig = &scopeConfig
+		op.BitbucketTransformationRule = &transformationRule
 	}
-	if op.BitbucketScopeConfig == nil && op.ScopeConfigId == 0 {
-		op.BitbucketScopeConfig = new(models.BitbucketScopeConfig)
+	if op.BitbucketTransformationRule == nil && op.TransformationRuleId == 0 {
+		op.BitbucketTransformationRule = new(models.BitbucketTransformationRule)
 	}
 	return err
 }

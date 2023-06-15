@@ -109,6 +109,8 @@ export const Auth = ({ initialValues, values, errors, setValues, setErrors }: Pr
     });
   };
 
+  console.log(errors);
+
   return (
     <>
       <FormGroup label={<S.Label>Jira Version</S.Label>} labelInfo={<S.LabelInfo>*</S.LabelInfo>}>

@@ -16,118 +16,82 @@
  *
  */
 
-import { useState, useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Link, useHistory } from 'react-router-dom';
-import { Button, InputGroup, Checkbox, Intent, FormGroup } from '@blueprintjs/core';
-import dayjs from 'dayjs';
+import { Button, InputGroup, Checkbox, Intent } from '@blueprintjs/core';
 
-import { PageHeader, Table, Dialog, IconButton, toast } from '@/components';
-import { cronPresets } from '@/config';
-import { useRefreshData } from '@/hooks';
-import { formatTime, operator } from '@/utils';
+import { PageHeader, Table, ColumnType, Dialog, IconButton } from '@/components';
 
-import { validName, encodeName } from '../utils';
-import { ModeEnum } from '../../blueprint';
-
-import * as API from './api';
+import { useProject } from './use-project';
 import * as S from './styled';
 
+type ProjectItem = {
+  name: string;
+};
+
 export const ProjectHomePage = () => {
-  const [version, setVersion] = useState(1);
   const [isOpen, setIsOpen] = useState(false);
   const [name, setName] = useState('');
   const [enableDora, setEnableDora] = useState(true);
-  const [saving, setSaving] = useState(false);
-
-  const { ready, data } = useRefreshData(() => API.getProjects({ page: 1, pageSize: 200 }), [version]);
 
   const history = useHistory();
-
-  const dataSource = useMemo(() => data?.projects ?? [], [data]);
-  const presets = useMemo(() => cronPresets.map((preset) => preset.config), []);
 
   const handleShowDialog = () => setIsOpen(true);
   const handleHideDialog = () => {
     setIsOpen(false);
     setName('');
-    setEnableDora(true);
   };
 
-  const handleCreate = async () => {
-    if (!validName(name)) {
-      toast.error('Please enter alphanumeric or underscore');
-      return;
-    }
+  const { loading, operating, projects, onSave } = useProject<ProjectItem>({
+    name,
+    enableDora,
+    onHideDialog: handleHideDialog,
+  });
 
-    const [success] = await operator(
-      async () => {
-        await API.createProject({
-          name: encodeName(name),
-          description: '',
-          metrics: [
-            {
-              pluginName: 'dora',
-              pluginOption: '',
-              enable: enableDora,
-            },
-          ],
-        });
-        return API.createBlueprint({
-          name: `${name}-Blueprint`,
-          projectName: name,
-          mode: ModeEnum.normal,
-          enable: true,
-          cronConfig: presets[0],
-          isManual: false,
-          skipOnFail: true,
-          settings: {
-            version: '2.0.0',
-            timeAfter: formatTime(dayjs().subtract(6, 'month').startOf('day').toDate(), 'YYYY-MM-DD[T]HH:mm:ssZ'),
-            connections: [],
-          },
-        });
-      },
-      {
-        setOperating: setSaving,
-      },
-    );
-
-    if (success) {
-      handleHideDialog();
-      setVersion((v) => v + 1);
-    }
-  };
+  const columns = useMemo(
+    () =>
+      [
+        {
+          title: 'Project Name',
+          dataIndex: 'name',
+          key: 'name',
+          render: (name: string) => (
+            <Link to={`/projects/${window.encodeURIComponent(name)}`} style={{ color: '#292b3f' }}>
+              {name}
+            </Link>
+          ),
+        },
+        {
+          title: '',
+          dataIndex: 'name',
+          key: 'action',
+          width: 100,
+          align: 'center',
+          render: (name: any) => (
+            <IconButton
+              icon="cog"
+              tooltip="Detail"
+              onClick={() => history.push(`/projects/${window.encodeURIComponent(name)}`)}
+            />
+          ),
+        },
+      ] as ColumnType<ProjectItem>,
+    [],
+  );
 
   return (
     <PageHeader
       breadcrumbs={[{ name: 'Projects', path: '/projects' }]}
-      extra={<Button intent={Intent.PRIMARY} icon="plus" text="New Project" onClick={handleShowDialog} />}
+      extra={
+        projects.length ? (
+          <Button intent={Intent.PRIMARY} icon="plus" text="New Project" onClick={handleShowDialog} />
+        ) : null
+      }
     >
       <Table
-        loading={!ready}
-        columns={[
-          {
-            title: 'Project Name',
-            dataIndex: 'name',
-            key: 'name',
-            render: (name: string) => (
-              <Link to={`/projects/${encodeName(name)}`} style={{ color: '#292b3f' }}>
-                {name}
-              </Link>
-            ),
-          },
-          {
-            title: '',
-            dataIndex: 'name',
-            key: 'action',
-            width: 100,
-            align: 'center',
-            render: (name: any) => (
-              <IconButton icon="cog" tooltip="Detail" onClick={() => history.push(`/projects/${encodeName(name)}`)} />
-            ),
-          },
-        ]}
-        dataSource={dataSource}
+        loading={loading}
+        columns={columns}
+        dataSource={projects}
         noData={{
           text: 'Add new projects to see engineering metrics based on projects.',
           btnText: 'New Project',
@@ -137,49 +101,41 @@ export const ProjectHomePage = () => {
       <Dialog
         isOpen={isOpen}
         title="Create a New Project"
-        style={{ width: 820 }}
+        style={{
+          top: -100,
+          width: 820,
+        }}
         okText="Save"
         okDisabled={!name}
-        okLoading={saving}
-        onOk={handleCreate}
+        okLoading={operating}
         onCancel={handleHideDialog}
+        onOk={onSave}
       >
-        <S.DialogWrapper>
-          <FormGroup
-            label={<S.Label>Project Name</S.Label>}
-            subLabel={
-              <S.LabelDescription>Give your project a unique name with letters, numbers, -, _ or /</S.LabelDescription>
-            }
-            labelInfo={<S.LabelInfo>*</S.LabelInfo>}
-          >
-            <InputGroup
-              style={{ width: 386 }}
-              placeholder="Your Project Name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-          </FormGroup>
-
-          <FormGroup
-            label={<S.Label>Project Settings</S.Label>}
-            subLabel={
-              <S.LabelDescription>
+        <S.DialogInner>
+          <div className="block">
+            <h3>Project Name *</h3>
+            <p>Give your project a unique name with letters, numbers, -, _ or /</p>
+            <InputGroup placeholder="Your Project Name" value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
+          <div className="block">
+            <h3>Project Settings</h3>
+            <div className="checkbox">
+              <Checkbox
+                label="Enable DORA Metrics"
+                checked={enableDora}
+                onChange={(e) => setEnableDora((e.target as HTMLInputElement).checked)}
+              />
+              <p>
                 <a href="https://devlake.apache.org/docs/DORA/" rel="noreferrer" target="_blank">
                   DORA metrics
                 </a>
                 <span style={{ marginLeft: 4 }}>
                   are four widely-adopted metrics for measuring software delivery performance.
                 </span>
-              </S.LabelDescription>
-            }
-          >
-            <Checkbox
-              label="Enable DORA Metrics"
-              checked={enableDora}
-              onChange={(e) => setEnableDora((e.target as HTMLInputElement).checked)}
-            />
-          </FormGroup>
-        </S.DialogWrapper>
+              </p>
+            </div>
+          </div>
+        </S.DialogInner>
       </Dialog>
     </PageHeader>
   );

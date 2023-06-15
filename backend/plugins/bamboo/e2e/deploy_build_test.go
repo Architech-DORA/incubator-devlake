@@ -36,7 +36,7 @@ func TestBambooDeployBuildDataFlow(t *testing.T) {
 		Options: &models.BambooOptions{
 			ConnectionId: 1,
 			ProjectKey:   "TEST1",
-			BambooScopeConfig: &models.BambooScopeConfig{
+			BambooTransformationRule: &models.BambooTransformationRule{
 				DeploymentPattern: "(?i)release",
 				ProductionPattern: "(?i)release",
 			},

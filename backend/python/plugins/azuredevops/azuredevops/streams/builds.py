@@ -37,25 +37,25 @@ class Builds(Stream):
 
     def convert(self, b: Build, ctx: Context):
         result = None
-        if b.result == Build.BuildResult.Canceled:
+        if b.result == Build.Result.Canceled:
             result = devops.CICDResult.ABORT
-        elif b.result == Build.BuildResult.Failed:
+        elif b.result == Build.Result.Failed:
             result = devops.CICDResult.FAILURE
-        elif b.result == Build.BuildResult.PartiallySucceeded:
+        elif b.result == Build.Result.PartiallySucceeded:
             result = devops.CICDResult.SUCCESS
-        elif b.result ==  Build.BuildResult.Succeeded:
+        elif b.result ==  Build.Result.Succeeded:
             result = devops.CICDResult.SUCCESS
 
         status = None
-        if b.status == Build.BuildStatus.Cancelling:
+        if b.status == Build.Status.Cancelling:
             status = devops.CICDStatus.DONE
-        elif b.status == Build.BuildStatus.Completed:
+        elif b.status == Build.Status.Completed:
             status = devops.CICDStatus.DONE
-        elif b.status ==  Build.BuildStatus.InProgress:
+        elif b.status ==  Build.Status.InProgress:
             status = devops.CICDStatus.IN_PROGRESS
-        elif b.status == Build.BuildStatus.NotStarted:
+        elif b.status == Build.Status.NotStarted:
             status = devops.CICDStatus.IN_PROGRESS
-        elif b.status ==  Build.BuildStatus.Postponed:
+        elif b.status ==  Build.Status.Postponed:
             status = devops.CICDStatus.IN_PROGRESS
 
         type = devops.CICDType.BUILD

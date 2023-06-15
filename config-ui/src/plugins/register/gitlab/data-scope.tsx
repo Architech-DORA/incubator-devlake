@@ -25,7 +25,6 @@ import * as S from './styled';
 
 interface Props {
   connectionId: ID;
-  disabledItems?: ScopeItemType[];
   selectedItems: ScopeItemType[];
   onChangeItems: (selectedItems: ScopeItemType[]) => void;
 }
@@ -36,11 +35,6 @@ export const GitLabDataScope = ({ connectionId, onChangeItems, ...props }: Props
     [props.selectedItems],
   );
 
-  const disabledItems = useMemo(
-    () => (props.disabledItems ?? []).map((it) => ({ id: `${it.gitlabId}`, name: it.name, data: it })),
-    [props.disabledItems],
-  );
-
   return (
     <S.DataScope>
       <h3>Projects *</h3>
@@ -49,7 +43,6 @@ export const GitLabDataScope = ({ connectionId, onChangeItems, ...props }: Props
         title="Subgroups/Projects"
         plugin="gitlab"
         connectionId={connectionId}
-        disabledItems={disabledItems}
         selectedItems={selectedItems}
         onChangeItems={onChangeItems}
       />
@@ -58,7 +51,6 @@ export const GitLabDataScope = ({ connectionId, onChangeItems, ...props }: Props
       <DataScopeSearch
         plugin="gitlab"
         connectionId={connectionId}
-        disabledItems={disabledItems}
         selectedItems={selectedItems}
         onChangeItems={onChangeItems}
       />

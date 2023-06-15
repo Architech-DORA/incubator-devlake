@@ -16,8 +16,8 @@
  *
  */
 
-import type { PluginConfigType } from '../../types';
-import { PluginType } from '../../types';
+import type { PluginConfigType } from '@/plugins';
+import { PluginType } from '@/plugins';
 
 import Icon from './assets/icon.svg';
 import { Auth } from './connection-fields';
@@ -58,7 +58,6 @@ export const JiraConfig: PluginConfigType = {
   transformation: {
     storyPointField: '',
     typeMappings: {},
-    remotelinkCommitShaPattern: '',
-    remotelinkRepoPattern: [''],
+    remotelinkCommitShaPattern: '/commit/([0-9a-f]{40})$/',
   },
 };

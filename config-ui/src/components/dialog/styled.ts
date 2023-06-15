@@ -45,8 +45,6 @@ export const Header = styled.div`
   }
 `;
 
-export const Body = styled.div`
-  margin: 24px;
-`;
+export const Body = styled.div``;
 
 export const Footer = styled.div``;

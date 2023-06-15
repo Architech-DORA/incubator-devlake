@@ -18,10 +18,9 @@ limitations under the License.
 package models
 
 import (
-	"time"
-
 	"github.com/apache/incubator-devlake/core/models/common"
 	"github.com/apache/incubator-devlake/core/plugin"
+	"time"
 )
 
 var _ plugin.ToolLayerScope = (*BitbucketRepo)(nil)
@@ -29,18 +28,18 @@ var _ plugin.ApiGroup = (*GroupResponse)(nil)
 var _ plugin.ApiScope = (*BitbucketApiRepo)(nil)
 
 type BitbucketRepo struct {
-	ConnectionId     uint64     `json:"connectionId" gorm:"primaryKey" validate:"required" mapstructure:"connectionId,omitempty"`
-	BitbucketId      string     `json:"bitbucketId" gorm:"primaryKey;type:varchar(255)" validate:"required" mapstructure:"bitbucketId"`
-	Name             string     `json:"name" gorm:"type:varchar(255)" mapstructure:"name,omitempty"`
-	HTMLUrl          string     `json:"HTMLUrl" gorm:"type:varchar(255)" mapstructure:"HTMLUrl,omitempty"`
-	Description      string     `json:"description" mapstructure:"description,omitempty"`
-	ScopeConfigId    uint64     `json:"scopeConfigId,omitempty" mapstructure:"scopeConfigId,omitempty"`
-	Owner            string     `json:"owner" mapstructure:"owner,omitempty"`
-	Language         string     `json:"language" gorm:"type:varchar(255)" mapstructure:"language,omitempty"`
-	CloneUrl         string     `json:"cloneUrl" gorm:"type:varchar(255)" mapstructure:"cloneUrl,omitempty"`
-	CreatedDate      *time.Time `json:"createdDate" mapstructure:"-"`
-	UpdatedDate      *time.Time `json:"updatedDate" mapstructure:"-"`
-	common.NoPKModel `json:"-" mapstructure:"-"`
+	ConnectionId         uint64     `json:"connectionId" gorm:"primaryKey" validate:"required" mapstructure:"connectionId,omitempty"`
+	BitbucketId          string     `json:"bitbucketId" gorm:"primaryKey;type:varchar(255)" validate:"required" mapstructure:"bitbucketId"`
+	Name                 string     `json:"name" gorm:"type:varchar(255)" mapstructure:"name,omitempty"`
+	HTMLUrl              string     `json:"HTMLUrl" gorm:"type:varchar(255)" mapstructure:"HTMLUrl,omitempty"`
+	Description          string     `json:"description" mapstructure:"description,omitempty"`
+	TransformationRuleId uint64     `json:"transformationRuleId,omitempty" mapstructure:"transformationRuleId,omitempty"`
+	Owner                string     `json:"owner" mapstructure:"owner,omitempty"`
+	Language             string     `json:"language" gorm:"type:varchar(255)" mapstructure:"language,omitempty"`
+	CloneUrl             string     `json:"cloneUrl" gorm:"type:varchar(255)" mapstructure:"cloneUrl,omitempty"`
+	CreatedDate          *time.Time `json:"createdDate" mapstructure:"-"`
+	UpdatedDate          *time.Time `json:"updatedDate" mapstructure:"-"`
+	common.NoPKModel     `json:"-" mapstructure:"-"`
 }
 
 func (BitbucketRepo) TableName() string {
@@ -67,7 +66,7 @@ type BitbucketApiRepo struct {
 	Language    string `json:"language"`
 	Description string `json:"description"`
 	Owner       struct {
-		Displayname string `json:"display_name"`
+		Username string `json:"username"`
 	} `json:"owner"`
 	CreatedAt *time.Time `json:"created_on"`
 	UpdatedAt *time.Time `json:"updated_on"`
@@ -90,7 +89,7 @@ func (b BitbucketApiRepo) ConvertApiScope() plugin.ToolLayerScope {
 	scope.Language = b.Language
 	scope.Description = b.Description
 	scope.Name = b.Name
-	scope.Owner = b.Owner.Displayname
+	scope.Owner = b.Owner.Username
 	scope.HTMLUrl = b.Links.Html.Href
 
 	scope.CloneUrl = ""

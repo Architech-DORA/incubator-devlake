@@ -25,13 +25,11 @@ export enum ConnectionStatusEnum {
 
 export type ConnectionItemType = {
   unique: string;
+  status: ConnectionStatusEnum;
   plugin: string;
-  pluginName: string;
   id: ID;
   name: string;
-  status: ConnectionStatusEnum;
   icon: string;
-  isBeta: boolean;
   entities: string[];
   endpoint: string;
   proxy: string;
@@ -39,6 +37,4 @@ export type ConnectionItemType = {
   username?: string;
   password?: string;
   authMethod?: string;
-  appId?: string;
-  secretKey?: string;
 };

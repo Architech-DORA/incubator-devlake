@@ -16,8 +16,8 @@
  *
  */
 
-import { useEffect, useState } from 'react';
-import { FormGroup, InputGroup, Button, Icon, Intent } from '@blueprintjs/core';
+import React, { useEffect, useState } from 'react';
+import { FormGroup, InputGroup, Button, Intent } from '@blueprintjs/core';
 
 import { ExternalLink } from '@/components';
 
@@ -29,7 +29,6 @@ type TokenItem = {
   value: string;
   status: 'idle' | 'valid' | 'invalid';
   from?: string;
-  message?: string;
 };
 
 interface Props {
@@ -43,7 +42,7 @@ interface Props {
 }
 
 export const Token = ({ endpoint, proxy, initialValue, value, error, setValue, setError }: Props) => {
-  const [tokens, setTokens] = useState<TokenItem[]>([{ value: '', status: 'idle', message: '' }]);
+  const [tokens, setTokens] = useState<TokenItem[]>([{ value: '', status: 'idle' }]);
 
   const testToken = async (token: string): Promise<TokenItem> => {
     if (!endpoint || !token) {
@@ -55,7 +54,6 @@ export const Token = ({ endpoint, proxy, initialValue, value, error, setValue, s
 
     try {
       const res = await API.testConnection({
-        authMethod: 'AccessToken',
         endpoint,
         proxy,
         token,
@@ -64,7 +62,6 @@ export const Token = ({ endpoint, proxy, initialValue, value, error, setValue, s
         value: token,
         status: 'valid',
         from: res.login,
-        message: res.message,
       };
     } catch {
       return {
@@ -85,10 +82,6 @@ export const Token = ({ endpoint, proxy, initialValue, value, error, setValue, s
 
   useEffect(() => {
     setError(value ? '' : 'token is required');
-
-    return () => {
-      setError('');
-    }
   }, [value]);
 
   useEffect(() => {
@@ -124,29 +117,21 @@ export const Token = ({ endpoint, proxy, initialValue, value, error, setValue, s
         </S.LabelDescription>
       }
     >
-      {tokens.map(({ value, status, from, message }, i) => (
-        <S.Input key={i}>
-          <div className="input">
-            <InputGroup
-              placeholder="Token"
-              type="password"
-              value={value ?? ''}
-              onChange={(e) => handleChangeToken(i, e.target.value)}
-              onBlur={() => handleTestToken(i)}
-            />
-            <Button minimal icon="cross" onClick={() => handleRemoveToken(i)} />
-            <div className="info">
-              {status === 'invalid' && <span className="error">Invalid</span>}
-              {status === 'valid' && <span className="success">Valid From: {from}</span>}
-            </div>
+      {tokens.map(({ value, status, from }, i) => (
+        <S.Token key={i}>
+          <InputGroup
+            placeholder="Token"
+            type="password"
+            value={value ?? ''}
+            onChange={(e) => handleChangeToken(i, e.target.value)}
+            onBlur={() => handleTestToken(i)}
+          />
+          <Button minimal icon="cross" onClick={() => handleRemoveToken(i)} />
+          <div className="info">
+            {status === 'invalid' && <span className="error">Invalid</span>}
+            {status === 'valid' && <span className="success">Valid From: {from}</span>}
           </div>
-          {message && (
-            <div className="warning">
-              <Icon icon="warning-sign" color="#F4BE55" style={{ marginRight: 4 }} />
-              {message}
-            </div>
-          )}
-        </S.Input>
+        </S.Token>
       ))}
       <div className="action">
         <Button outlined small intent={Intent.PRIMARY} text="Another Token" icon="plus" onClick={handleCreateToken} />

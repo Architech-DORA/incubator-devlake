@@ -22,7 +22,6 @@ import (
 	"github.com/apache/incubator-devlake/core/plugin"
 	"github.com/apache/incubator-devlake/helpers/pluginhelper/api"
 	"github.com/apache/incubator-devlake/server/services/remote/bridge"
-	remoteModel "github.com/apache/incubator-devlake/server/services/remote/models"
 )
 
 type pluginAPI struct {
@@ -66,9 +65,8 @@ func GetDefaultAPI(
 			"GET": papi.ListScopes,
 		},
 		"connections/:connectionId/scopes/:scopeId": {
-			"GET":    papi.GetScope,
-			"PATCH":  papi.UpdateScope,
-			"DELETE": papi.DeleteScope,
+			"GET":   papi.GetScope,
+			"PATCH": papi.PatchScope,
 		},
 		"connections/:connectionId/remote-scopes": {
 			"GET": papi.GetRemoteScopes,
@@ -88,22 +86,6 @@ func GetDefaultAPI(
 			"PATCH": papi.PatchTransformationRule,
 		}
 	}
-	scopeHelper = createScopeHelper(papi)
-	return resources
-}
 
-func createScopeHelper(pa *pluginAPI) *api.GenericScopeApiHelper[remoteModel.RemoteConnection, remoteModel.RemoteScope, remoteModel.RemoteTransformation] {
-	params := &api.ReflectionParameters{
-		ScopeIdFieldName:  "Id",
-		ScopeIdColumnName: "id",
-		RawScopeParamName: "scope_id",
-	}
-	return api.NewGenericScopeHelper[remoteModel.RemoteConnection, remoteModel.RemoteScope, remoteModel.RemoteTransformation](
-		basicRes,
-		nil,
-		connectionHelper,
-		NewScopeDatabaseHelperImpl(pa, basicRes, params),
-		params,
-		&api.ScopeHelperOptions{},
-	)
+	return resources
 }

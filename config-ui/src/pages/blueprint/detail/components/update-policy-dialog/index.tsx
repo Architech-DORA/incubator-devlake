@@ -16,14 +16,13 @@
  *
  */
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 
 import { Dialog } from '@/components';
 
 import type { BlueprintType } from '../../../types';
 import { ModeEnum } from '../../../types';
-
-import { SyncPolicy } from '../sync-policy';
+import { SyncPolicy } from '../../../components';
 
 interface Props {
   blueprint: BlueprintType;
@@ -33,7 +32,7 @@ interface Props {
   timeAfter: string | null;
   operating: boolean;
   onCancel: () => void;
-  onSubmit: (params: any) => void;
+  onSubmit: (params: any) => Promise<void>;
 }
 
 export const UpdatePolicyDialog = ({ blueprint, operating, onCancel, onSubmit, ...props }: Props) => {

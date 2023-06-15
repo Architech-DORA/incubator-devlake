@@ -17,7 +17,6 @@
  */
 
 import type { PluginConfigType } from './types';
-import { BasePipelineConfig } from './register/base';
 import { AEConfig } from './register/ae';
 import { AzureConfig } from './register/azure';
 import { BitBucketConfig } from './register/bitbucket';
@@ -39,8 +38,9 @@ import { SonarQubeConfig } from './register/sonarqube';
 import { StarRocksConfig } from './register/starrocks';
 import { TAPDConfig } from './register/tapd';
 import { WebhookConfig } from './register/webook';
-import { TeambitionConfig } from './register/teambition';
 import { ZenTaoConfig } from './register/zentao';
+import { TeambitionConfig } from './register/teambition';
+import { BasePipelineConfig } from '@/plugins/register/base';
 
 export const PluginConfig: PluginConfigType[] = [
   AEConfig,

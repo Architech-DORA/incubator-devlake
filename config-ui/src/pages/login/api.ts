@@ -23,12 +23,4 @@ type LoginPayload = {
   password: string;
 };
 
-type NewPasswordPayload = {
-  username: string;
-  newPassword: string;
-  session: string;
-};
-
 export const login = (payload: LoginPayload) => request(`/login`, { method: 'post', data: payload });
-export const newPassword = (payload: NewPasswordPayload) =>
-  request(`/login/newpassword`, { method: 'post', data: payload });

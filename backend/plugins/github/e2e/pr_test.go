@@ -124,7 +124,6 @@ func TestPrDataFlow(t *testing.T) {
 			"base_repo_id",
 			"head_repo_id",
 			"status",
-			"original_status",
 			"title",
 			"description",
 			"url",

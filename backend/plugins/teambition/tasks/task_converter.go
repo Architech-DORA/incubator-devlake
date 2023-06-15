@@ -141,13 +141,6 @@ func ConvertTasks(taskCtx plugin.SubTaskContext) errors.Error {
 					IssueId:  issue.Id,
 				})
 			}
-			if issue.AssigneeId != "" {
-				result = append(result, &ticket.IssueAssignee{
-					IssueId:      issue.Id,
-					AssigneeId:   issue.AssigneeId,
-					AssigneeName: issue.AssigneeName,
-				})
-			}
 
 			return result, nil
 		},

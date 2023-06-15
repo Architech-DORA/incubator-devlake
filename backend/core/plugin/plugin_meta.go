@@ -45,6 +45,5 @@ type PluginIcon interface {
 type PluginSource interface {
 	Connection() interface{}
 	Scope() interface{}
-	// Deprecated: rename to ScopeConfig
-	// TransformationRule() interface{}
+	TransformationRule() interface{}
 }

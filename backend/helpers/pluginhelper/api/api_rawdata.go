@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"github.com/apache/incubator-devlake/core/errors"
 	plugin "github.com/apache/incubator-devlake/core/plugin"
-	"reflect"
 	"time"
 
 	"gorm.io/datatypes"
@@ -38,10 +37,6 @@ type RawData struct {
 	CreatedAt time.Time
 }
 
-type TaskOptions interface {
-	GetParams() any
-}
-
 // RawDataSubTaskArgs FIXME ...
 type RawDataSubTaskArgs struct {
 	Ctx plugin.SubTaskContext
@@ -49,12 +44,9 @@ type RawDataSubTaskArgs struct {
 	//	Table store raw data
 	Table string `comment:"Raw data table name"`
 
-	// Deprecated: Use Options instead
-	// This struct will be JSONEncoded and stored into database along with raw data itself, to identity minimal set of
-	// data to be processed, for example, we process JiraIssues by Board
-	Params any `comment:"To identify a set of records with same UrlTemplate, i.e. {ConnectionId, BoardId} for jira entities"`
-
-	Options TaskOptions `comment:"To identify a set of records with same UrlTemplate, i.e. {ConnectionId, BoardId} for jira entities"`
+	//	This struct will be JSONEncoded and stored into database along with raw data itself, to identity minimal
+	//	set of data to be process, for example, we process JiraIssues by Board
+	Params interface{} `comment:"To identify a set of records with same UrlTemplate, i.e. {ConnectionId, BoardId} for jira entities"`
 }
 
 // RawDataSubTask is Common features for raw data sub-tasks
@@ -72,18 +64,12 @@ func NewRawDataSubTask(args RawDataSubTaskArgs) (*RawDataSubTask, errors.Error) 
 	if args.Table == "" {
 		return nil, errors.Default.New("Table is required for RawDataSubTask")
 	}
-	var params any
-	if args.Options != nil {
-		params = args.Options.GetParams()
-	} else { // fallback to old way
-		params = args.Params
-	}
 	paramsString := ""
-	if params == nil || reflect.ValueOf(params).IsZero() {
-		args.Ctx.GetLogger().Warn(nil, fmt.Sprintf("Missing `Params` for raw data subtask %s", args.Ctx.GetName()))
+	if args.Params == nil {
+		args.Ctx.GetLogger().Warn(nil, "Missing `Params` for raw data subtask %s", args.Ctx.GetName())
 	} else {
 		// TODO: maybe sort it to make it consistent
-		paramsBytes, err := json.Marshal(params)
+		paramsBytes, err := json.Marshal(args.Params)
 		if err != nil {
 			return nil, errors.Default.Wrap(err, "unable to serialize subtask parameters")
 		}

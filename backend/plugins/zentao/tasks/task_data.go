@@ -19,8 +19,6 @@ package tasks
 
 import (
 	"fmt"
-
-	"github.com/apache/incubator-devlake/core/dal"
 	"github.com/apache/incubator-devlake/core/errors"
 	helper "github.com/apache/incubator-devlake/helpers/pluginhelper/api"
 	"github.com/mitchellh/mapstructure"
@@ -43,12 +41,10 @@ type ZentaoOptions struct {
 	TimeAfter string `json:"timeAfter" mapstructure:"timeAfter,omitempty"`
 	//TransformationRuleId                uint64 `json:"transformationZentaoeId" mapstructure:"transformationRuleId,omitempty"`
 	//*models.ZentaoTransformationRule `mapstructure:"transformationRules,omitempty" json:"transformationRules"`
-
 }
 
 type ZentaoTaskData struct {
 	Options   *ZentaoOptions
-	RemoteDb  dal.Dal
 	ApiClient *helper.ApiAsyncClient
 }
 

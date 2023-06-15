@@ -16,12 +16,13 @@
  *
  */
 
-import type { PluginConfigType } from '../../types';
-import { PluginType } from '../../types';
-import { pick } from 'lodash';
+import React from 'react';
+
+import type { PluginConfigType } from '@/plugins';
+import { PluginType } from '@/plugins';
 
 import Icon from './assets/icon.svg';
-import { Token, Graphql, GithubApp, Authentication } from './connection-fields';
+import { Token, Graphql } from './connection-fields';
 
 export const GitHubConfig: PluginConfigType = {
   type: PluginType.Connection,
@@ -33,7 +34,6 @@ export const GitHubConfig: PluginConfigType = {
     docLink: 'https://devlake.apache.org/docs/Configuration/GitHub',
     initialValues: {
       endpoint: 'https://api.github.com/',
-      authMethod: 'AccessToken',
       enableGraphql: true,
     },
     fields: [
@@ -46,35 +46,17 @@ export const GitHubConfig: PluginConfigType = {
         },
       },
       ({ initialValues, values, errors, setValues, setErrors }: any) => (
-        <Authentication
-          key="authMethod"
-          initialValue={initialValues.authMethod ?? ''}
-          value={values.authMethod ?? ''}
-          setValue={(value) => setValues({ authMethod: value })}
+        <Token
+          key="token"
+          endpoint={values.endpoint}
+          proxy={values.proxy}
+          initialValue={initialValues.token ?? ''}
+          value={values.token ?? ''}
+          error={errors.token ?? ''}
+          setValue={(value) => setValues({ token: value })}
+          setError={(value) => setErrors({ token: value })}
         />
       ),
-      ({ initialValues, values, errors, setValues, setErrors }: any) =>
-        (values.authMethod || initialValues.authMethod) == 'AccessToken' ? (
-          <Token
-            endpoint={values.endpoint}
-            proxy={values.proxy}
-            initialValue={initialValues.token ?? ''}
-            value={values.token ?? ''}
-            error={errors.token ?? ''}
-            setValue={(value) => setValues({ token: value })}
-            setError={(value) => setErrors({ token: value })}
-          />
-        ) : (
-          <GithubApp
-            endpoint={values.endpoint}
-            proxy={values.proxy}
-            initialValue={initialValues ? pick(initialValues, ['appId', 'secretKey', 'installationId']) : {}}
-            value={values ? pick(values, ['appId', 'secretKey', 'installationId']) : {}}
-            error={errors ?? {}}
-            setValue={(value) => setValues(value)}
-            setError={(value) => setErrors(value)}
-          />
-        ),
       'proxy',
       ({ initialValues, values, setValues }: any) => (
         <Graphql

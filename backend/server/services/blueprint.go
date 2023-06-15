@@ -20,7 +20,6 @@ package services
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/apache/incubator-devlake/helpers/pluginhelper/services"
 	"strings"
 
 	"github.com/apache/incubator-devlake/core/dal"
@@ -32,11 +31,6 @@ import (
 	"github.com/robfig/cron/v3"
 )
 
-var (
-	blueprintLog = logruslog.Global.Nested("blueprint")
-	ErrEmptyPlan = errors.Default.New("empty plan")
-)
-
 // BlueprintQuery is a query for GetBlueprints
 type BlueprintQuery struct {
 	Pagination
@@ -45,6 +39,10 @@ type BlueprintQuery struct {
 	Label    string `form:"label"`
 }
 
+var (
+	blueprintLog = logruslog.Global.Nested("blueprint")
+)
+
 type BlueprintJob struct {
 	Blueprint *models.Blueprint
 }
@@ -52,10 +50,6 @@ type BlueprintJob struct {
 func (bj BlueprintJob) Run() {
 	blueprint := bj.Blueprint
 	pipeline, err := createPipelineByBlueprint(blueprint)
-	if err == ErrEmptyPlan {
-		blueprintLog.Info("Empty plan, blueprint id:[%d] blueprint name:[%s]", blueprint.ID, blueprint.Name)
-		return
-	}
 	if err != nil {
 		blueprintLog.Error(err, fmt.Sprintf("run cron job failed on blueprint:[%d][%s]", blueprint.ID, blueprint.Name))
 	} else {
@@ -69,7 +63,7 @@ func CreateBlueprint(blueprint *models.Blueprint) errors.Error {
 	if err != nil {
 		return err
 	}
-	err = bpManager.SaveDbBlueprint(blueprint)
+	err = SaveDbBlueprint(blueprint)
 	if err != nil {
 		return err
 	}
@@ -82,13 +76,7 @@ func CreateBlueprint(blueprint *models.Blueprint) errors.Error {
 
 // GetBlueprints returns a paginated list of Blueprints based on `query`
 func GetBlueprints(query *BlueprintQuery) ([]*models.Blueprint, int64, errors.Error) {
-	blueprints, count, err := bpManager.GetDbBlueprints(&services.GetBlueprintQuery{
-		Enable:      query.Enable,
-		IsManual:    query.IsManual,
-		Label:       query.Label,
-		SkipRecords: query.GetSkip(),
-		PageSize:    query.GetPageSize(),
-	})
+	blueprints, count, err := GetDbBlueprints(query)
 	if err != nil {
 		return nil, 0, errors.Convert(err)
 	}
@@ -97,7 +85,7 @@ func GetBlueprints(query *BlueprintQuery) ([]*models.Blueprint, int64, errors.Er
 
 // GetBlueprint returns the detail of a given Blueprint ID
 func GetBlueprint(blueprintId uint64) (*models.Blueprint, errors.Error) {
-	blueprint, err := bpManager.GetDbBlueprint(blueprintId)
+	blueprint, err := GetDbBlueprint(blueprintId)
 	if err != nil {
 		if db.IsErrorNotFound(err) {
 			return nil, errors.NotFound.New("blueprint not found")
@@ -112,7 +100,7 @@ func GetBlueprintByProjectName(projectName string) (*models.Blueprint, errors.Er
 	if projectName == "" {
 		return nil, errors.Internal.New("can not use the empty projectName to search the unique blueprint")
 	}
-	blueprint, err := bpManager.GetDbBlueprintByProjectName(projectName)
+	blueprint, err := GetDbBlueprintByProjectName(projectName)
 	if err != nil {
 		// Allow specific projectName to fail to find the corresponding blueprint
 		if db.IsErrorNotFound(err) {
@@ -166,6 +154,10 @@ func validateBlueprintAndMakePlan(blueprint *models.Blueprint) errors.Error {
 		if err != nil {
 			return errors.Default.Wrap(err, "invalid plan")
 		}
+		// tasks should not be empty
+		if len(plan) == 0 || len(plan[0]) == 0 {
+			return errors.Default.New("empty plan")
+		}
 	} else if blueprint.Mode == models.BLUEPRINT_MODE_NORMAL {
 		plan, err := MakePlanForBlueprint(blueprint)
 		if err != nil {
@@ -185,7 +177,7 @@ func saveBlueprint(blueprint *models.Blueprint) (*models.Blueprint, errors.Error
 	if err != nil {
 		return nil, errors.BadInput.WrapRaw(err)
 	}
-	err = bpManager.SaveDbBlueprint(blueprint)
+	err = SaveDbBlueprint(blueprint)
 	if err != nil {
 		return nil, err
 	}
@@ -225,27 +217,11 @@ func PatchBlueprint(id uint64, body map[string]interface{}) (*models.Blueprint, 
 	return blueprint, nil
 }
 
-// DeleteBlueprint FIXME ...
-func DeleteBlueprint(id uint64) errors.Error {
-	bp, err := bpManager.GetDbBlueprint(id)
-	if err != nil {
-		return err
-	}
-	err = bpManager.DeleteBlueprint(bp.ID)
-	if err != nil {
-		return errors.Default.Wrap(err, "Failed to delete the blueprint")
-	}
-	return nil
-}
-
 // ReloadBlueprints FIXME ...
 func ReloadBlueprints(c *cron.Cron) errors.Error {
 	enable := true
 	isManual := false
-	blueprints, _, err := bpManager.GetDbBlueprints(&services.GetBlueprintQuery{
-		Enable:   &enable,
-		IsManual: &isManual,
-	})
+	blueprints, _, err := GetDbBlueprints(&BlueprintQuery{Enable: &enable, IsManual: &isManual})
 	if err != nil {
 		return err
 	}
@@ -294,23 +270,6 @@ func createPipelineByBlueprint(blueprint *models.Blueprint) (*models.Pipeline, e
 	newPipeline.BlueprintId = blueprint.ID
 	newPipeline.Labels = blueprint.Labels
 	newPipeline.SkipOnFail = blueprint.SkipOnFail
-
-	// if the plan is empty, we should not create the pipeline
-	var shouldCreatePipeline bool
-	for _, stage := range plan {
-		for _, task := range stage {
-			switch task.Plugin {
-			case "org", "refdiff", "dora":
-			default:
-				if !plan.IsEmpty() {
-					shouldCreatePipeline = true
-				}
-			}
-		}
-	}
-	if !shouldCreatePipeline {
-		return nil, ErrEmptyPlan
-	}
 	pipeline, err := CreatePipeline(&newPipeline)
 	// Return all created tasks to the User
 	if err != nil {

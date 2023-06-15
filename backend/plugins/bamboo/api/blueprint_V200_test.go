@@ -38,21 +38,22 @@ import (
 
 func TestMakeDataSourcePipelinePlanV200(t *testing.T) {
 	const testConnectionID uint64 = 1
-	const testScopeConfigId uint64 = 2
+	const testTransformationRuleId uint64 = 2
 	const testKey string = "TEST"
 	const testBambooEndPoint string = "http://mail.nddtf.com:8085/rest/api/latest/"
 	const testLink string = "http://mail.nddtf.com:8085/rest/api/latest/project/TEST"
 	const testUser string = "username"
 	const testPass string = "password"
 	const testName string = "bamboo-test"
-	const testScopeConfigName string = "bamboo scope config"
+	const testTransformationRuleName string = "bamboo transformation rule"
 	const testProxy string = ""
 
 	syncPolicy := &plugin.BlueprintSyncPolicy{}
 	bpScopes := []*plugin.BlueprintScopeV200{
 		{
-			Id:   testKey,
-			Name: testName,
+			Entities: []string{plugin.DOMAIN_TYPE_CICD},
+			Id:       testKey,
+			Name:     testName,
 		},
 	}
 
@@ -62,17 +63,14 @@ func TestMakeDataSourcePipelinePlanV200(t *testing.T) {
 		Name:         testName,
 		Href:         testLink,
 
-		ScopeConfigId: testScopeConfigId,
+		TransformationRuleId: testTransformationRuleId,
 	}
 
-	var testScopeConfig = &models.BambooScopeConfig{
-		ScopeConfig: common.ScopeConfig{
-			Model: common.Model{
-				ID: testScopeConfigId,
-			},
-			Entities: []string{plugin.DOMAIN_TYPE_CICD},
+	var testTransformationRule = &models.BambooTransformationRule{
+		Model: common.Model{
+			ID: testTransformationRuleId,
 		},
-		Name: testScopeConfigName,
+		Name: testTransformationRuleName,
 	}
 
 	var testBambooConnection = &models.BambooConnection{
@@ -109,9 +107,9 @@ func TestMakeDataSourcePipelinePlanV200(t *testing.T) {
 					tasks.ConvertProjectsMeta.Name,
 				},
 				Options: map[string]interface{}{
-					"connectionId":  uint64(1),
-					"projectKey":    testKey,
-					"scopeConfigId": testScopeConfigId,
+					"connectionId":         uint64(1),
+					"projectKey":           testKey,
+					"transformationRuleId": testTransformationRuleId,
 				},
 			},
 		},
@@ -132,15 +130,19 @@ func TestMakeDataSourcePipelinePlanV200(t *testing.T) {
 	// Refresh Global Variables and set the sql mock
 	basicRes = unithelper.DummyBasicRes(func(mockDal *mockdal.Dal) {
 		mockDal.On("First", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
-			switch dst := args.Get(0).(type) {
-			case *models.BambooConnection:
-				*dst = *testBambooConnection
-			case *models.BambooProject:
-				*dst = *testBambooProject
-			case *models.BambooScopeConfig:
-				*dst = *testScopeConfig
-			}
-		}).Return(nil)
+			dst := args.Get(0).(*models.BambooConnection)
+			*dst = *testBambooConnection
+		}).Return(nil).Once()
+
+		mockDal.On("First", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+			dst := args.Get(0).(*models.BambooProject)
+			*dst = *testBambooProject
+		}).Return(nil).Twice()
+
+		mockDal.On("First", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+			dst := args.Get(0).(*models.BambooTransformationRule)
+			*dst = *testTransformationRule
+		}).Return(nil).Once()
 	})
 	connectionHelper = helper.NewConnectionHelper(
 		basicRes,

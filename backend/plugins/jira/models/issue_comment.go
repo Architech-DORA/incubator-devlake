@@ -17,25 +17,16 @@ limitations under the License.
 
 package models
 
-import (
-	"github.com/apache/incubator-devlake/core/models/common"
-	"time"
-)
+import "time"
 
-type JiraIssueComment struct {
-	common.NoPKModel
+type IssueComment struct {
 	ConnectionId       uint64 `gorm:"primaryKey"`
 	IssueId            uint64 `gorm:"primarykey"`
 	ComentId           string `gorm:"primarykey"`
 	Self               string `gorm:"type:varchar(255)"`
 	Body               string
-	CreatorAccountId   string    `gorm:"type:varchar(255)"`
-	CreatorDisplayName string    `gorm:"type:varchar(255)"`
-	Created            time.Time `json:"created"`
-	Updated            time.Time `json:"updated"`
-	IssueUpdated       *time.Time
-}
-
-func (JiraIssueComment) TableName() string {
-	return "_tool_jira_issue_comments"
+	CreatorAccountId   string     `gorm:"type:varchar(255)"`
+	CreatorDisplayName string     `gorm:"type:varchar(255)"`
+	Created            *time.Time `json:"created"`
+	Updated            *time.Time `json:"updated"`
 }

@@ -34,7 +34,7 @@ func TestDeloymentsDataFlow(t *testing.T) {
 		Options: &tasks.BitbucketOptions{
 			ConnectionId: 1,
 			FullName:     "likyh/likyhphp",
-			BitbucketScopeConfig: &models.BitbucketScopeConfig{
+			BitbucketTransformationRule: &models.BitbucketTransformationRule{
 				DeploymentPattern: "",
 				ProductionPattern: "",
 			},

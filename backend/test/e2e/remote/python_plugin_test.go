@@ -58,11 +58,13 @@ func TestRemoteScopeGroups(t *testing.T) {
 func TestRemoteScopes(t *testing.T) {
 	client := CreateClient(t)
 	connection := CreateTestConnection(client)
+
 	output := client.RemoteScopes(helper.RemoteScopesQuery{
 		PluginName:   PLUGIN_NAME,
 		ConnectionId: connection.ID,
 		GroupId:      "group1",
 	})
+
 	scopes := output.Children
 	require.Equal(t, 1, len(scopes))
 	scope := scopes[0]
@@ -80,28 +82,25 @@ func TestRemoteScopes(t *testing.T) {
 
 func TestCreateScope(t *testing.T) {
 	client := CreateClient(t)
-	conn := CreateTestConnection(client)
-	rule := CreateTestTransformationRule(client, conn.ID)
-	scope := CreateTestScope(client, rule, conn.ID)
+	var connectionId uint64 = 1
 
-	scopes := client.ListScopes(PLUGIN_NAME, conn.ID, false)
+	CreateTestScope(client, connectionId)
+
+	scopes := client.ListScopes(PLUGIN_NAME, connectionId)
 	require.Equal(t, 1, len(scopes))
-
-	cicdScope := helper.Cast[FakeProject](scopes[0].Scope)
-	require.Equal(t, conn.ID, cicdScope.ConnectionId)
-	require.Equal(t, "p1", cicdScope.Id)
-	require.Equal(t, "Project 1", cicdScope.Name)
-	require.Equal(t, "http://fake.org/api/project/p1", cicdScope.Url)
-
-	cicdScope.Name = "scope-name-2"
-	client.UpdateScope(PLUGIN_NAME, conn.ID, cicdScope.Id, scope)
+	cicd_scope := helper.Cast[FakeProject](scopes[0])
+	require.Equal(t, connectionId, cicd_scope.ConnectionId)
+	require.Equal(t, "p1", cicd_scope.Id)
+	require.Equal(t, "Project 1", cicd_scope.Name)
+	require.Equal(t, "http://fake.org/api/project/p1", cicd_scope.Url)
 }
 
 func TestRunPipeline(t *testing.T) {
 	client := CreateClient(t)
 	conn := CreateTestConnection(client)
-	rule := CreateTestTransformationRule(client, conn.ID)
-	scope := CreateTestScope(client, rule, conn.ID)
+
+	CreateTestScope(client, conn.ID)
+
 	pipeline := client.RunPipeline(models.NewPipeline{
 		Name: "remote_test",
 		Plan: []plugin.PipelineStage{
@@ -111,45 +110,56 @@ func TestRunPipeline(t *testing.T) {
 					Subtasks: nil,
 					Options: map[string]interface{}{
 						"connectionId": conn.ID,
-						"scopeId":      scope.Id,
+						"scopeId":      "p1",
 					},
 				},
 			},
 		},
 	})
+
 	require.Equal(t, models.TASK_COMPLETED, pipeline.Status)
 	require.Equal(t, 1, pipeline.FinishedTasks)
 	require.Equal(t, "", pipeline.ErrorName)
 }
 
-func TestBlueprintV200_withScopeDeletion(t *testing.T) {
+func TestBlueprintV200(t *testing.T) {
 	client := CreateClient(t)
-	params := CreateTestBlueprints(t, client, 1)
-	client.TriggerBlueprint(params.blueprints[0].ID)
-	scopesResponse := client.ListScopes(PLUGIN_NAME, params.connection.ID, true)
-	require.Equal(t, 1, len(scopesResponse))
-	require.Equal(t, 1, len(scopesResponse[0].Blueprints))
-	bps := client.DeleteScope(PLUGIN_NAME, params.connection.ID, params.scope.Id, false)
-	require.Equal(t, 1, len(bps))
-	scopesResponse = client.ListScopes(PLUGIN_NAME, params.connection.ID, true)
-	require.Equal(t, 0, len(scopesResponse))
-	bpsResult := client.ListBlueprints()
-	require.Equal(t, 1, len(bpsResult.Blueprints))
-}
+	connection := CreateTestConnection(client)
+	projectName := "Test project"
+	client.CreateProject(&helper.ProjectConfig{
+		ProjectName: projectName,
+	})
+	CreateTestScope(client, connection.ID)
 
-func TestBlueprintV200_withBlueprintDeletion(t *testing.T) {
-	client := CreateClient(t)
-	params := CreateTestBlueprints(t, client, 2)
-	client.TriggerBlueprint(params.blueprints[0].ID)
-	scopesResponse := client.ListScopes(PLUGIN_NAME, params.connection.ID, true)
-	require.Equal(t, 1, len(scopesResponse))
-	require.Equal(t, 2, len(scopesResponse[0].Blueprints))
-	client.DeleteBlueprint(params.blueprints[0].ID)
-	scopesResponse = client.ListScopes(PLUGIN_NAME, params.connection.ID, true)
-	require.Equal(t, 1, len(scopesResponse)) //scopes are NOT cascade-deleted when bp is deleted
-	bpsList := client.ListBlueprints()
-	require.Equal(t, 1, len(bpsList.Blueprints))
-	require.Equal(t, params.blueprints[1].ID, bpsList.Blueprints[0].ID)
+	blueprint := client.CreateBasicBlueprintV2(
+		"Test blueprint",
+		&helper.BlueprintV2Config{
+			Connection: &plugin.BlueprintConnectionV200{
+				Plugin:       "fake",
+				ConnectionId: connection.ID,
+				Scopes: []*plugin.BlueprintScopeV200{
+					{
+						Id:   "p1",
+						Name: "Test scope",
+						Entities: []string{
+							plugin.DOMAIN_TYPE_CICD,
+						},
+					},
+				},
+			},
+			SkipOnFail:  true,
+			ProjectName: projectName,
+		},
+	)
+
+	plan, err := blueprint.UnmarshalPlan()
+	require.NoError(t, err)
+	_ = plan
+
+	project := client.GetProject(projectName)
+	require.Equal(t, blueprint.Name, project.Blueprint.Name)
+	pipeline := client.TriggerBlueprint(blueprint.ID)
+	require.Equal(t, pipeline.Status, models.TASK_COMPLETED)
 }
 
 func TestCreateTxRule(t *testing.T) {

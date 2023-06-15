@@ -18,10 +18,9 @@ limitations under the License.
 package apiv2models
 
 import (
-	"time"
-
 	helper "github.com/apache/incubator-devlake/helpers/pluginhelper/api"
 	"github.com/apache/incubator-devlake/plugins/jira/models"
+	"time"
 )
 
 type Changelog struct {
@@ -32,7 +31,7 @@ type Changelog struct {
 }
 
 func (c Changelog) ToToolLayer(connectionId, issueId uint64, issueUpdated *time.Time) (*models.JiraIssueChangelogs, *models.JiraAccount) {
-	changelog := &models.JiraIssueChangelogs{
+	return &models.JiraIssueChangelogs{
 		ConnectionId:      connectionId,
 		ChangelogId:       c.ID,
 		IssueId:           issueId,
@@ -41,8 +40,7 @@ func (c Changelog) ToToolLayer(connectionId, issueId uint64, issueUpdated *time.
 		AuthorActive:      c.Author.Active,
 		Created:           c.Created.ToTime(),
 		IssueUpdated:      issueUpdated,
-	}
-	return changelog, c.Author.ToToolLayer(connectionId)
+	}, c.Author.ToToolLayer(connectionId)
 }
 
 type ChangelogItem struct {
@@ -55,7 +53,7 @@ type ChangelogItem struct {
 }
 
 func (c ChangelogItem) ToToolLayer(connectionId, changelogId uint64) *models.JiraIssueChangelogItems {
-	item := &models.JiraIssueChangelogItems{
+	return &models.JiraIssueChangelogItems{
 		ConnectionId: connectionId,
 		ChangelogId:  changelogId,
 		Field:        c.Field,
@@ -65,7 +63,6 @@ func (c ChangelogItem) ToToolLayer(connectionId, changelogId uint64) *models.Jir
 		ToValue:      c.ToValue,
 		ToString:     c.ToString,
 	}
-	return item
 }
 
 func (c ChangelogItem) ExtractUser(connectionId uint64) []*models.JiraAccount {

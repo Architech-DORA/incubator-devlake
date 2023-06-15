@@ -16,7 +16,7 @@
  *
  */
 
-import { useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 
 import { DataScopeMillerColumns } from '@/plugins';
 
@@ -27,7 +27,6 @@ import { ExternalLink } from '@/components';
 
 interface Props {
   connectionId: ID;
-  disabledItems?: ScopeItemType[];
   selectedItems: ScopeItemType[];
   onChangeItems: (selectedItems: ScopeItemType[]) => void;
 }
@@ -36,11 +35,6 @@ export const TapdDataScope = ({ connectionId, onChangeItems, ...props }: Props) 
   const selectedItems = useMemo(
     () => props.selectedItems.map((it) => ({ id: `${it.id}`, name: it.name, data: it })),
     [props.selectedItems],
-  );
-
-  const disabledItems = useMemo(
-    () => (props.disabledItems ?? []).map((it) => ({ id: `${it.id}`, name: it.name, data: it })),
-    [props.disabledItems],
   );
 
   const [pageToken, setPageToken] = useState<string | undefined>(undefined);
@@ -87,7 +81,6 @@ export const TapdDataScope = ({ connectionId, onChangeItems, ...props }: Props) 
           key={pageToken}
           plugin="tapd"
           connectionId={connectionId}
-          disabledItems={disabledItems}
           selectedItems={selectedItems}
           onChangeItems={onChangeItems}
           pageToken={pageToken}

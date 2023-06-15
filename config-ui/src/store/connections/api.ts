@@ -18,18 +18,7 @@
 
 import { request } from '@/utils';
 
-type GetConnectionRes = {
-  id: ID;
-  name: string;
-  endpoint: string;
-  proxy: string;
-  token?: string;
-  username?: string;
-  password?: string;
-  authMethod?: string;
-};
-
-export const getConnection = (plugin: string): Promise<GetConnectionRes[]> => request(`/plugins/${plugin}/connections`);
+export const getConnection = (plugin: string) => request(`/plugins/${plugin}/connections`);
 
 type TestConnectionPayload = {
   endpoint: string;
@@ -38,8 +27,6 @@ type TestConnectionPayload = {
   username?: string;
   password?: string;
   authMethod?: string;
-  appId?: string;
-  secretKey?: string;
 };
 
 export const testConnection = (plugin: string, data: TestConnectionPayload) =>

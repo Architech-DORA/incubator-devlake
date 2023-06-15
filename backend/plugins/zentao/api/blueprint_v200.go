@@ -19,9 +19,6 @@ package api
 
 import (
 	"fmt"
-	"strings"
-	"time"
-
 	"github.com/apache/incubator-devlake/core/dal"
 	"github.com/apache/incubator-devlake/core/errors"
 	"github.com/apache/incubator-devlake/core/models/domainlayer"
@@ -33,6 +30,8 @@ import (
 	"github.com/apache/incubator-devlake/plugins/zentao/models"
 	"github.com/apache/incubator-devlake/plugins/zentao/tasks"
 	"github.com/go-playground/validator/v10"
+	"strings"
+	"time"
 )
 
 func MakeDataSourcePipelinePlanV200(subtaskMetas []plugin.SubTaskMeta, connectionId uint64, bpScopes []*plugin.BlueprintScopeV200, syncPolicy *plugin.BlueprintSyncPolicy) (plugin.PipelinePlan, []plugin.Scope, errors.Error) {

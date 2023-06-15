@@ -22,12 +22,11 @@ import { MillerColumns } from './components';
 
 interface Props {
   connectionId: ID;
-  disabledItems?: ScopeItemType[];
   selectedItems: ScopeItemType[];
   onChangeItems: (selectedItems: ScopeItemType[]) => void;
 }
 
-export const JenkinsDataScope = ({ connectionId, disabledItems, selectedItems, onChangeItems }: Props) => {
+export const JenkinsDataScope = ({ connectionId, selectedItems, onChangeItems }: Props) => {
   return (
     <>
       <h3>Jobs *</h3>

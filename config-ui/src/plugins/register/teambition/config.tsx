@@ -16,8 +16,10 @@
  *
  */
 
-import type { PluginConfigType } from '../../types';
-import { PluginType } from '../../types';
+import React from 'react';
+
+import type { PluginConfigType } from '@/plugins';
+import { PluginType } from '@/plugins';
 
 import Icon from './assets/icon.svg';
 import { ConnectionTenantId, ConnectionTenantType } from './connection-fields';

@@ -26,9 +26,9 @@ import (
 
 var vld *validator.Validate
 var connectionHelper *api.ConnectionApiHelper
-var scopeHelper *api.ScopeApiHelper[models.BambooConnection, models.BambooProject, models.BambooScopeConfig]
+var scopeHelper *api.ScopeApiHelper[models.BambooConnection, models.BambooProject, models.BambooTransformationRule]
 var remoteHelper *api.RemoteApiHelper[models.BambooConnection, models.BambooProject, models.ApiBambooProject, api.NoRemoteGroupResponse]
-var scopeConfigHelper *api.ScopeConfigHelper[models.BambooScopeConfig]
+var trHelper *api.TransformationRuleHelper[models.BambooTransformationRule]
 
 var basicRes context.BasicRes
 
@@ -39,25 +39,17 @@ func Init(br context.BasicRes) {
 		basicRes,
 		vld,
 	)
-	params := &api.ReflectionParameters{
-		ScopeIdFieldName:  "ProjectKey",
-		ScopeIdColumnName: "project_key",
-	}
-	scopeHelper = api.NewScopeHelper[models.BambooConnection, models.BambooProject, models.BambooScopeConfig](
+	scopeHelper = api.NewScopeHelper[models.BambooConnection, models.BambooProject, models.BambooTransformationRule](
 		basicRes,
 		vld,
 		connectionHelper,
-		api.NewScopeDatabaseHelperImpl[models.BambooConnection, models.BambooProject, models.BambooScopeConfig](
-			basicRes, connectionHelper, params),
-		params,
-		nil,
 	)
 	remoteHelper = api.NewRemoteHelper[models.BambooConnection, models.BambooProject, models.ApiBambooProject, api.NoRemoteGroupResponse](
 		basicRes,
 		vld,
 		connectionHelper,
 	)
-	scopeConfigHelper = api.NewScopeConfigHelper[models.BambooScopeConfig](
+	trHelper = api.NewTransformationRuleHelper[models.BambooTransformationRule](
 		basicRes,
 		vld,
 	)

@@ -53,7 +53,6 @@ build-server: swag
 build-python: #don't mix this with the other build commands
 	find ./python/ -name "*.sh" | xargs chmod +x &&\
 	sh python/build.sh
-	sh python/build.sh python/test
 
 build: build-plugin build-server
 
@@ -70,9 +69,6 @@ worker:
 	go run worker/*.go
 
 dev: build-plugin build-python run
-
-godev: 
-	DISABLED_REMOTE_PLUGINS=true make build-plugin run
 
 debug: build-plugin-debug
 	dlv debug server/main.go
@@ -93,7 +89,7 @@ build-pydevlake:
 	poetry install -C python/pydevlake
 
 python-unit-test: build-pydevlake
-	sh python/build.sh python/test &&\
+	sh python/build.sh test &&\
 	sh ./python/run_tests.sh
 
 e2e-plugins-test:

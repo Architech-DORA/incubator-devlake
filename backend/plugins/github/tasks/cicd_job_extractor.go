@@ -19,13 +19,12 @@ package tasks
 
 import (
 	"encoding/json"
-	"strings"
-
 	"github.com/apache/incubator-devlake/core/errors"
 	"github.com/apache/incubator-devlake/core/models/domainlayer/devops"
 	"github.com/apache/incubator-devlake/core/plugin"
 	"github.com/apache/incubator-devlake/helpers/pluginhelper/api"
 	"github.com/apache/incubator-devlake/plugins/github/models"
+	"strings"
 )
 
 var ExtractJobsMeta = plugin.SubTaskMeta{
@@ -79,7 +78,7 @@ func ExtractJobs(taskCtx plugin.SubTaskContext) errors.Error {
 				RunnerName:    githubJob.RunnerName,
 				RunnerGroupID: githubJob.RunnerGroupID,
 				Type:          data.RegexEnricher.ReturnNameIfMatched(devops.DEPLOYMENT, githubJob.Name),
-				Environment:   data.RegexEnricher.ReturnNameIfOmittedOrMatched(devops.PRODUCTION, githubJob.Name),
+				Environment:   data.RegexEnricher.ReturnNameIfMatched(devops.PRODUCTION, githubJob.Name),
 			}
 			results = append(results, githubJobResult)
 			return results, nil

@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 
 	"github.com/apache/incubator-devlake/core/errors"
-	"github.com/apache/incubator-devlake/core/models/domainlayer/devops"
 	"github.com/apache/incubator-devlake/core/plugin"
 	"github.com/apache/incubator-devlake/helpers/pluginhelper/api"
 	"github.com/apache/incubator-devlake/plugins/gitlab/models"
@@ -52,23 +51,17 @@ func ExtractApiPipelineDetails(taskCtx plugin.SubTaskContext) errors.Error {
 				gitlabApiPipeline.Duration = int(gitlabApiPipeline.UpdatedAt.ToTime().Sub(gitlabApiPipeline.CreatedAt.ToTime()).Seconds())
 			}
 			gitlabPipeline := &models.GitlabPipeline{
-				GitlabId:        gitlabApiPipeline.Id,
-				ProjectId:       data.Options.ProjectId,
-				Ref:             gitlabApiPipeline.Ref,
-				Sha:             gitlabApiPipeline.Sha,
-				WebUrl:          gitlabApiPipeline.WebUrl,
-				Status:          gitlabApiPipeline.Status,
-				GitlabCreatedAt: api.Iso8601TimeToTime(gitlabApiPipeline.CreatedAt),
-				GitlabUpdatedAt: api.Iso8601TimeToTime(gitlabApiPipeline.UpdatedAt),
-				StartedAt:       api.Iso8601TimeToTime(gitlabApiPipeline.StartedAt),
-				FinishedAt:      api.Iso8601TimeToTime(gitlabApiPipeline.FinishedAt),
-				Duration:        gitlabApiPipeline.Duration,
-				ConnectionId:    data.Options.ConnectionId,
-
-				Type:        data.RegexEnricher.ReturnNameIfMatched(devops.DEPLOYMENT, gitlabApiPipeline.Ref),
-				Environment: data.RegexEnricher.ReturnNameIfMatched(devops.PRODUCTION, gitlabApiPipeline.Ref),
-
-				IsDetailRequired: false,
+				GitlabId:         gitlabApiPipeline.Id,
+				ProjectId:        data.Options.ProjectId,
+				WebUrl:           gitlabApiPipeline.WebUrl,
+				Status:           gitlabApiPipeline.Status,
+				GitlabCreatedAt:  api.Iso8601TimeToTime(gitlabApiPipeline.CreatedAt),
+				GitlabUpdatedAt:  api.Iso8601TimeToTime(gitlabApiPipeline.UpdatedAt),
+				StartedAt:        api.Iso8601TimeToTime(gitlabApiPipeline.StartedAt),
+				FinishedAt:       api.Iso8601TimeToTime(gitlabApiPipeline.FinishedAt),
+				Duration:         gitlabApiPipeline.Duration,
+				ConnectionId:     data.Options.ConnectionId,
+				IsDetailRequired: true,
 			}
 			if err != nil {
 				return nil, err

@@ -38,19 +38,6 @@ type PipelineStage []*PipelineTask
 // PipelinePlan consist of multiple PipelineStages, they will be executed in sequential order
 type PipelinePlan []PipelineStage
 
-// IsEmpty checks if a PipelinePlan is empty
-func (plan PipelinePlan) IsEmpty() bool {
-	if len(plan) == 0 {
-		return true
-	}
-	for _, stage := range plan {
-		if len(stage) > 0 {
-			return false
-		}
-	}
-	return true
-}
-
 // PluginBlueprintV100 is used to support Blueprint Normal model, for Plugin and Blueprint to
 // collaboarte and generate a sophisticated Pipeline Plan based on User Settings.
 // V100 doesn't support Project, and being deprecated, please use PluginBlueprintV200 instead
@@ -137,10 +124,10 @@ type BlueprintConnectionV200 struct {
 }
 
 // BlueprintScopeV200 contains the `id` and `name` for a specific scope
+// transformationRuleId should be deduced by the ScopeId
 type BlueprintScopeV200 struct {
-	Id   string `json:"id"`
-	Name string `json:"name"`
-	// Deprecated: Entities is moved to the ScopeConfig struct
+	Id       string   `json:"id"`
+	Name     string   `json:"name"`
 	Entities []string `json:"entities"`
 }
 

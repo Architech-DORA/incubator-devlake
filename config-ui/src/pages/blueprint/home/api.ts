@@ -18,23 +18,9 @@
 
 import { request } from '@/utils';
 
-import { BlueprintType } from '../types';
-
 type GetBlueprintsParams = {
   page: number;
   pageSize: number;
 };
 
-type GetBlueprintResponse = {
-  blueprints: Array<BlueprintType>;
-  count: number;
-};
-
-export const getBlueprints = (params: GetBlueprintsParams): Promise<GetBlueprintResponse> =>
-  request('/blueprints', { data: params });
-
-export const createBlueprint = (payload: any) =>
-  request('/blueprints', {
-    method: 'post',
-    data: payload,
-  });
+export const getBlueprints = (params: GetBlueprintsParams) => request('/blueprints', { data: params });

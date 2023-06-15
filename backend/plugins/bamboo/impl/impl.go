@@ -33,15 +33,17 @@ import (
 )
 
 // make sure interface is implemented
-var _ plugin.PluginMeta = (*Bamboo)(nil)
-var _ plugin.PluginInit = (*Bamboo)(nil)
-var _ plugin.PluginTask = (*Bamboo)(nil)
-var _ plugin.PluginModel = (*Bamboo)(nil)
-var _ plugin.PluginMigration = (*Bamboo)(nil)
-var _ plugin.PluginBlueprintV100 = (*Bamboo)(nil)
-var _ plugin.DataSourcePluginBlueprintV200 = (*Bamboo)(nil)
-var _ plugin.CloseablePluginTask = (*Bamboo)(nil)
-var _ plugin.PluginSource = (*Bamboo)(nil)
+var _ interface {
+	plugin.PluginMeta
+	plugin.PluginInit
+	plugin.PluginTask
+	plugin.PluginModel
+	plugin.PluginMigration
+	plugin.PluginBlueprintV100
+	plugin.DataSourcePluginBlueprintV200
+	plugin.CloseablePluginTask
+	plugin.PluginSource
+} = (*Bamboo)(nil)
 
 type Bamboo struct{}
 
@@ -58,7 +60,7 @@ func (p Bamboo) Scope() interface{} {
 	return nil
 }
 
-func (p Bamboo) ScopeConfig() interface{} {
+func (p Bamboo) TransformationRule() interface{} {
 	return nil
 }
 
@@ -148,26 +150,26 @@ func (p Bamboo) PrepareTaskData(taskCtx plugin.TaskContext, options map[string]i
 				return nil, err
 			}
 		}
-		op.ScopeConfigId = scope.ScopeConfigId
+		op.TransformationRuleId = scope.TransformationRuleId
 		if err != nil {
 			return nil, errors.Default.Wrap(err, fmt.Sprintf("fail to find project: %s", op.ProjectKey))
 		}
 	}
 
-	if op.BambooScopeConfig == nil && op.ScopeConfigId != 0 {
-		var scopeConfig models.BambooScopeConfig
+	if op.BambooTransformationRule == nil && op.TransformationRuleId != 0 {
+		var transformationRule models.BambooTransformationRule
 		db := taskCtx.GetDal()
-		err = db.First(&scopeConfig, dal.Where("id = ?", op.ScopeConfigId))
+		err = db.First(&transformationRule, dal.Where("id = ?", op.TransformationRuleId))
 		if err != nil {
 			if db.IsErrorNotFound(err) {
-				return nil, errors.Default.Wrap(err, fmt.Sprintf("can not find scopeConfig by scopeConfigId [%d]", op.ScopeConfigId))
+				return nil, errors.Default.Wrap(err, fmt.Sprintf("can not find transformationRules by transformationRuleId [%d]", op.TransformationRuleId))
 			}
-			return nil, errors.Default.Wrap(err, fmt.Sprintf("fail to find scopeConfig by scopeConfigId [%d]", op.ScopeConfigId))
+			return nil, errors.Default.Wrap(err, fmt.Sprintf("fail to find transformationRules by transformationRuleId [%d]", op.TransformationRuleId))
 		}
-		op.BambooScopeConfig = &scopeConfig
+		op.BambooTransformationRule = &transformationRule
 	}
-	if op.BambooScopeConfig == nil && op.ScopeConfigId == 0 {
-		op.BambooScopeConfig = new(models.BambooScopeConfig)
+	if op.BambooTransformationRule == nil && op.TransformationRuleId == 0 {
+		op.BambooTransformationRule = new(models.BambooTransformationRule)
 	}
 	regexEnricher := helper.NewRegexEnricher()
 	if err := regexEnricher.TryAdd(devops.DEPLOYMENT, op.DeploymentPattern); err != nil {
@@ -206,13 +208,13 @@ func (p Bamboo) ApiResources() map[string]map[string]plugin.ApiResourceHandler {
 			"PATCH":  api.PatchConnection,
 			"DELETE": api.DeleteConnection,
 		},
-		"connections/:connectionId/scope_configs": {
-			"POST": api.CreateScopeConfig,
-			"GET":  api.GetScopeConfigList,
+		"connections/:connectionId/transformation_rules": {
+			"POST": api.CreateTransformationRule,
+			"GET":  api.GetTransformationRuleList,
 		},
-		"connections/:connectionId/scope_configs/:id": {
-			"PATCH": api.UpdateScopeConfig,
-			"GET":   api.GetScopeConfig,
+		"connections/:connectionId/transformation_rules/:id": {
+			"PATCH": api.UpdateTransformationRule,
+			"GET":   api.GetTransformationRule,
 		},
 		"connections/:connectionId/scopes": {
 			"GET": api.GetScopeList,
@@ -225,9 +227,8 @@ func (p Bamboo) ApiResources() map[string]map[string]plugin.ApiResourceHandler {
 			"GET": api.SearchRemoteScopes,
 		},
 		"connections/:connectionId/scopes/:scopeId": {
-			"GET":    api.GetScope,
-			"PATCH":  api.UpdateScope,
-			"DELETE": api.DeleteScope,
+			"GET":   api.GetScope,
+			"PATCH": api.UpdateScope,
 		},
 	}
 }

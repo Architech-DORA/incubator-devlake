@@ -26,131 +26,129 @@ import (
 	"math/big"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/apache/incubator-devlake/core/config"
-	"github.com/apache/incubator-devlake/core/context"
-	"github.com/apache/incubator-devlake/core/errors"
-	"github.com/apache/incubator-devlake/core/log"
+	"github.com/apache/incubator-devlake/impls/logruslog"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cognitoidentityprovider"
 	"github.com/dgrijalva/jwt-go"
+	"github.com/gin-gonic/gin"
 )
 
-type AwsCognitoProvider struct {
-	jwks         Jwks
-	logger       log.Logger
-	client       *cognitoidentityprovider.CognitoIdentityProvider
-	clientId     *string
-	expectClaims jwt.MapClaims
-}
+var (
+	//jwksCache is a cache of the fetched JWKS
+	jwksCache Jwks
+	//jwksCacheMx is a mutex to lock the jwksCache
+	jwksCacheMx sync.Mutex
+	logger      = logruslog.Global.Nested("auth")
+)
 
-func NewCognitoProvider(basicRes context.BasicRes) *AwsCognitoProvider {
+func CreateCognitoClient() *cognitoidentityprovider.CognitoIdentityProvider {
 	// Get configuration
 	v := config.GetConfig()
-	// TODO: verify the configuration
 	// Create an AWS session
 	sess := session.Must(session.NewSession(&aws.Config{
 		Region: aws.String(v.GetString("AWS_AUTH_REGION")),
 	}))
 	// Create a Cognito Identity Provider client
-	client := cognitoidentityprovider.New(sess)
-	cgt := &AwsCognitoProvider{
-		client:   client,
-		clientId: aws.String(v.GetString("AWS_AUTH_USER_POOL_WEB_CLIENT_ID")),
-		logger:   basicRes.GetLogger().Nested("cognito"),
-	}
-	// Fetch the JWKS from the Cognito User Pool
-	jwksURL := fmt.Sprintf(
-		"https://cognito-idp.%s.amazonaws.com/%s/.well-known/jwks.json",
-		v.GetString("AWS_AUTH_REGION"),
-		v.GetString("AWS_AUTH_USER_POOL_ID"),
-	)
-	err := cgt.fetchJWKS(jwksURL)
-	if err != nil {
-		panic(err)
-	}
-	// Optional expect claims
-	expect_claims := strings.TrimSpace(v.GetString("AWS_AUTH_EXPECT_CLAIMS"))
-	if expect_claims != "" {
-		e := json.Unmarshal([]byte(expect_claims), &cgt.expectClaims)
-		if e != nil {
-			panic(e)
-		}
-	}
-	return cgt
+	return cognitoidentityprovider.New(sess)
 }
 
-func (cgt *AwsCognitoProvider) fetchJWKS(jwksURL string) errors.Error {
+func SignIn(cognitoClient *cognitoidentityprovider.CognitoIdentityProvider, username, password string) (*cognitoidentityprovider.InitiateAuthOutput, error) {
+	// Get configuration
+	v := config.GetConfig()
+	// Create the input for InitiateAuth
+	input := &cognitoidentityprovider.InitiateAuthInput{
+		AuthFlow: aws.String("USER_PASSWORD_AUTH"),
+		ClientId: aws.String(v.GetString("AWS_AUTH_USER_POOL_WEB_CLIENT_ID")),
+		AuthParameters: map[string]*string{
+			"USERNAME": aws.String(username),
+			"PASSWORD": aws.String(password),
+		},
+	}
+
+	// Call Cognito to get auth tokens
+	response, err := cognitoClient.InitiateAuth(input)
+	if err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
+func fetchJWKS(jwksURL string) (jwks Jwks, err error) {
 	// Get the JWKS from the URL
 	resp, err := http.Get(jwksURL)
 	if err != nil {
-		return errors.Default.Wrap(err, "Failed to fetch JWKS")
+		return
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return errors.Default.Wrap(err, "Failed to read JWKS")
+		return
 	}
 	// Unmarshal the response into a Jwks struct
-	err = json.Unmarshal(body, &cgt.jwks)
+	err = json.Unmarshal(body, &jwks)
+	return
+}
+
+func ensureJWKS(jwksURL string) (jwks Jwks, err error) {
+	// Lock the mutex
+	jwksCacheMx.Lock()
+	defer jwksCacheMx.Unlock()
+
+	// If the cache is empty, fetch the JWKS
+	if len(jwksCache.Keys) == 0 {
+		jwksCache, err = fetchJWKS(jwksURL)
+	}
+	// Return the cached JWKS
+	jwks = jwksCache
+	return
+}
+
+func AuthenticationMiddleware(ctx *gin.Context) {
+	// Get configuration
+	v := config.GetConfig()
+	// Construct the JWKS URL
+	jwksURL := fmt.Sprintf("https://cognito-idp.%s.amazonaws.com/%s/.well-known/jwks.json", v.GetString("AWS_AUTH_REGION"), v.GetString("AWS_AUTH_USER_POOL_ID"))
+	// Get the cached JWKS
+	jwks, err := ensureJWKS(jwksURL)
 	if err != nil {
-		return errors.Default.Wrap(err, "Failed to unmarshall JWKS")
-	}
-	return nil
-}
-
-func (cgt *AwsCognitoProvider) SignIn(loginReq *LoginRequest) (*LoginResponse, errors.Error) {
-	// Create the input for InitiateAuth
-	input := &cognitoidentityprovider.InitiateAuthInput{
-		AuthFlow: aws.String("USER_PASSWORD_AUTH"),
-		ClientId: cgt.clientId,
-		AuthParameters: map[string]*string{
-			"USERNAME": aws.String(loginReq.Username),
-			"PASSWORD": aws.String(loginReq.Password),
-		},
+		fmt.Printf("Error fetching JWKS: %v\n", err)
+		ctx.Abort()
+		return
 	}
 
-	// Call Cognito to get auth tokens
-	return cgt.initiateAuth(input)
-}
+	// Get the Auth header
+	authHeader := ctx.GetHeader("Authorization")
+	if authHeader == "" {
+		http.Error(ctx.Writer, "Authorization header is missing", http.StatusUnauthorized)
+		ctx.Abort()
+		return
+	}
 
-func (cgt *AwsCognitoProvider) initiateAuth(input *cognitoidentityprovider.InitiateAuthInput) (*LoginResponse, errors.Error) {
-	response, err := cgt.client.InitiateAuth(input)
-	if err != nil {
-		return nil, errors.BadInput.New(err.Error())
+	// Split the header into "Bearer" and the actual token
+	bearerToken := strings.Split(authHeader, " ")
+	if len(bearerToken) != 2 {
+		http.Error(ctx.Writer, "Invalid Authorization header", http.StatusUnauthorized)
+		ctx.Abort()
+		return
 	}
-	loginRes := &LoginResponse{
-		ChallengeName:       response.ChallengeName,
-		ChallengeParameters: response.ChallengeParameters,
-		Session:             response.Session,
-	}
-	if response.AuthenticationResult != nil {
-		loginRes.AuthenticationResult = &AuthenticationResult{
-			AccessToken:  response.AuthenticationResult.AccessToken,
-			ExpiresIn:    response.AuthenticationResult.ExpiresIn,
-			IdToken:      response.AuthenticationResult.IdToken,
-			RefreshToken: response.AuthenticationResult.RefreshToken,
-			TokenType:    response.AuthenticationResult.TokenType,
-		}
-	}
-	return loginRes, nil
-}
 
-func (cgt *AwsCognitoProvider) CheckAuth(tokenString string) (*jwt.Token, errors.Error) {
 	// Parse the JWT token
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.Parse(bearerToken[1], func(token *jwt.Token) (interface{}, error) {
 		// Check the signing method
 		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
-			return nil, errors.Unauthorized.New(fmt.Sprintf("Unexpected signing method: %v", token.Header["alg"]))
+			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
 		}
 
 		// Get the key ID from the header
 		kid := token.Header["kid"].(string)
 
 		// Look for the key that matches the kid
-		for _, key := range cgt.jwks.Keys {
+		for _, key := range jwks.Keys {
 			if key.Kid == kid {
 				// Construct the RSA public key
 				n := pemHeader(key.N)
@@ -166,34 +164,12 @@ func (cgt *AwsCognitoProvider) CheckAuth(tokenString string) (*jwt.Token, errors
 		return nil, fmt.Errorf("Public key not found")
 	})
 
-	if err != nil {
-		if ve, ok := err.(*jwt.ValidationError); ok {
-			if ve.Errors == jwt.ValidationErrorExpired {
-				return nil, errors.Forbidden.New("Token expired")
-			}
-		}
-	}
-
-	// Check if the token is valid
+	// Check if the token is invalid
 	if err != nil || !token.Valid {
-		cgt.logger.Error(err, "Invalid token")
-		return nil, errors.Unauthorized.New("Invalid token")
+		logger.Error(err, "Invalid token")
+		http.Error(ctx.Writer, "Invalid token", http.StatusUnauthorized)
+		ctx.Abort()
 	}
-
-	// verify claims
-	if len(cgt.expectClaims) > 0 {
-		if actualClaims, ok := token.Claims.(jwt.MapClaims); ok {
-			for key, expected := range cgt.expectClaims {
-				if expected != actualClaims[key] {
-					return nil, errors.Unauthorized.New("Invalid token: expected claims do not match")
-				}
-			}
-		} else {
-			return nil, errors.Unauthorized.New("Invalid token: expected claims do not match")
-		}
-	}
-
-	return token, nil
 }
 
 func pemHeader(encodedKey string) []byte {
@@ -213,64 +189,3 @@ type Jwks struct {
 		E   string `json:"e"`
 	} `json:"keys"`
 }
-
-func (cgt *AwsCognitoProvider) NewPassword(newPasswordReq *NewPasswordRequest) (*LoginResponse, errors.Error) {
-	input := &cognitoidentityprovider.RespondToAuthChallengeInput{
-		ChallengeName: aws.String("NEW_PASSWORD_REQUIRED"),
-		ChallengeResponses: map[string]*string{
-			"USERNAME":     aws.String(newPasswordReq.Username),
-			"NEW_PASSWORD": aws.String(newPasswordReq.NewPassword),
-		},
-		Session:  aws.String(newPasswordReq.Session),
-		ClientId: cgt.clientId,
-	}
-	response, err := cgt.client.RespondToAuthChallenge(input)
-	if err != nil {
-		return nil, errors.BadInput.Wrap(err, "Error setting up new password: "+err.Error())
-	}
-	// yes , it is identical to the login response, and yet they are 2 different structs
-	loginRes := &LoginResponse{
-		ChallengeName:       response.ChallengeName,
-		ChallengeParameters: response.ChallengeParameters,
-		Session:             response.Session,
-	}
-	if response.AuthenticationResult != nil {
-		loginRes.AuthenticationResult = &AuthenticationResult{
-			AccessToken:  response.AuthenticationResult.AccessToken,
-			ExpiresIn:    response.AuthenticationResult.ExpiresIn,
-			IdToken:      response.AuthenticationResult.IdToken,
-			RefreshToken: response.AuthenticationResult.RefreshToken,
-			TokenType:    response.AuthenticationResult.TokenType,
-		}
-	}
-	return loginRes, nil
-}
-
-func (cgt *AwsCognitoProvider) RefreshToken(req *RefreshTokenRequest) (*LoginResponse, errors.Error) {
-	// Create the input for InitiateAuth
-	input := &cognitoidentityprovider.InitiateAuthInput{
-		AuthFlow: aws.String(cognitoidentityprovider.AuthFlowTypeRefreshTokenAuth),
-		ClientId: cgt.clientId,
-		AuthParameters: map[string]*string{
-			"REFRESH_TOKEN": aws.String(req.RefreshToken),
-		},
-	}
-	return cgt.initiateAuth(input)
-}
-
-// func (cgt *AwsCognitorProvider) ChangePassword(ctx *gin.Context, oldPassword, newPassword string) errors.Error {
-// 	token := ctx.GetString(("token"))
-// 	if token == "" {
-// 		return errors.Unauthorized.New("Token is missing")
-// 	}
-// 	input := &cognitoidentityprovider.ChangePasswordInput{
-// 		AccessToken:      &token,
-// 		PreviousPassword: &oldPassword,
-// 		ProposedPassword: &newPassword,
-// 	}
-// 	_, err := cgt.client.ChangePassword(input)
-// 	if err != nil {
-// 		return errors.BadInput.Wrap(err, "Error changing password")
-// 	}
-// 	return nil
-// }

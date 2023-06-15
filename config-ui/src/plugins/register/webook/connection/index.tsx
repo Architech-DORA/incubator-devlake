@@ -16,32 +16,32 @@
  *
  */
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { ButtonGroup, Button, Intent } from '@blueprintjs/core';
 
 import { Table, ColumnType, ExternalLink, IconButton } from '@/components';
-import { useConnections } from '@/hooks';
 
 import type { WebhookItemType } from '../types';
 import { WebhookCreateDialog } from '../create-dialog';
 import { WebhookDeleteDialog } from '../delete-dialog';
 import { WebhookViewOrEditDialog } from '../view-or-edit-dialog';
 
+import type { UseConnectionProps } from './use-connection';
+import { useConnection } from './use-connection';
 import * as S from './styled';
 
 type Type = 'add' | 'edit' | 'show' | 'delete';
 
-interface Props {
-  filterIds?: ID[];
+interface Props extends UseConnectionProps {
   onCreateAfter?: (id: ID) => void;
   onDeleteAfter?: (id: ID) => void;
 }
 
-export const WebHookConnection = ({ filterIds, onCreateAfter, onDeleteAfter }: Props) => {
+export const WebHookConnection = ({ onCreateAfter, onDeleteAfter, ...props }: Props) => {
   const [type, setType] = useState<Type>();
   const [record, setRecord] = useState<WebhookItemType>();
 
-  const { connections, onRefresh } = useConnections({ plugin: 'webhook' });
+  const { loading, connections, onRefresh } = useConnection({ ...props });
 
   const handleHideDialog = () => {
     setType(undefined);
@@ -85,8 +85,9 @@ export const WebHookConnection = ({ filterIds, onCreateAfter, onDeleteAfter }: P
         <Button icon="plus" text="Add a Webhook" intent={Intent.PRIMARY} onClick={() => handleShowDialog('add')} />
       </ButtonGroup>
       <Table
+        loading={loading}
         columns={columns}
-        dataSource={connections.filter((cs) => (filterIds ? filterIds.includes(cs.id) : true))}
+        dataSource={connections}
         noData={{
           text: (
             <>
@@ -125,7 +126,7 @@ export const WebHookConnection = ({ filterIds, onCreateAfter, onDeleteAfter }: P
           isOpen
           initialValues={record}
           onCancel={handleHideDialog}
-          onSubmitAfter={() => onRefresh()}
+          onSubmitAfter={onRefresh}
         />
       )}
     </S.Wrapper>

@@ -19,9 +19,6 @@ package api
 
 import (
 	"fmt"
-	"net/url"
-	"time"
-
 	"github.com/apache/incubator-devlake/core/dal"
 	"github.com/apache/incubator-devlake/core/errors"
 	"github.com/apache/incubator-devlake/core/models/domainlayer"
@@ -35,6 +32,8 @@ import (
 	"github.com/apache/incubator-devlake/plugins/bitbucket/models"
 	"github.com/apache/incubator-devlake/plugins/bitbucket/tasks"
 	"github.com/go-playground/validator/v10"
+	"net/url"
+	"time"
 )
 
 func MakeDataSourcePipelinePlanV200(subtaskMetas []plugin.SubTaskMeta, connectionId uint64, bpScopes []*plugin.BlueprintScopeV200, syncPolicy *plugin.BlueprintSyncPolicy) (plugin.PipelinePlan, []plugin.Scope, errors.Error) {
@@ -78,21 +77,21 @@ func makeDataSourcePipelinePlanV200(
 		if err != nil {
 			return nil, errors.Default.Wrap(err, fmt.Sprintf("fail to find repo %s", bpScope.Id))
 		}
-		scopeConfig := &models.BitbucketScopeConfig{}
-		// get scope configs from db
+		transformationRule := &models.BitbucketTransformationRule{}
+		// get transformation rules from db
 		db := basicRes.GetDal()
-		err = db.First(scopeConfig, dal.Where(`id = ?`, repo.ScopeConfigId))
+		err = db.First(transformationRule, dal.Where(`id = ?`, repo.TransformationRuleId))
 		if err != nil && !db.IsErrorNotFound(err) {
 			return nil, err
 		}
 		// refdiff
-		if scopeConfig != nil && scopeConfig.Refdiff != nil {
+		if transformationRule != nil && transformationRule.Refdiff != nil {
 			// add a new task to next stage
 			j := i + 1
 			if j == len(plan) {
 				plan = append(plan, nil)
 			}
-			refdiffOp := scopeConfig.Refdiff
+			refdiffOp := transformationRule.Refdiff
 			refdiffOp["repoId"] = didgen.NewDomainIdGenerator(&models.BitbucketRepo{}).Generate(connection.ID, repo.BitbucketId)
 			plan[j] = plugin.PipelineStage{
 				{
@@ -100,7 +99,7 @@ func makeDataSourcePipelinePlanV200(
 					Options: refdiffOp,
 				},
 			}
-			scopeConfig.Refdiff = nil
+			transformationRule.Refdiff = nil
 		}
 
 		// construct task options for bitbucket
@@ -116,7 +115,7 @@ func makeDataSourcePipelinePlanV200(
 			return nil, err
 		}
 
-		subtasks, err := helper.MakePipelinePlanSubtasks(subtaskMetas, scopeConfig.Entities)
+		subtasks, err := helper.MakePipelinePlanSubtasks(subtaskMetas, bpScope.Entities)
 		if err != nil {
 			return nil, err
 		}

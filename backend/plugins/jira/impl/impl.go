@@ -110,9 +110,6 @@ func (p Jira) SubTaskMetas() []plugin.SubTaskMeta {
 
 		tasks.ConvertIssueLabelsMeta,
 
-		tasks.CollectIssueCommentsMeta,
-		tasks.ExtractIssueCommentsMeta,
-
 		tasks.CollectIssueChangelogsMeta,
 		tasks.ExtractIssueChangelogsMeta,
 
@@ -130,8 +127,9 @@ func (p Jira) SubTaskMetas() []plugin.SubTaskMeta {
 		tasks.ConvertBoardMeta,
 
 		tasks.ConvertIssuesMeta,
-		tasks.ConvertIssueCommentsMeta,
+
 		tasks.ConvertWorklogsMeta,
+
 		tasks.ConvertIssueChangelogsMeta,
 
 		tasks.ConvertSprintsMeta,
@@ -288,9 +286,8 @@ func (p Jira) ApiResources() map[string]map[string]plugin.ApiResourceHandler {
 			"GET": api.Proxy,
 		},
 		"connections/:connectionId/scopes/:scopeId": {
-			"GET":    api.GetScope,
-			"PATCH":  api.UpdateScope,
-			"DELETE": api.DeleteScope,
+			"GET":   api.GetScope,
+			"PATCH": api.UpdateScope,
 		},
 		"connections/:connectionId/scopes": {
 			"GET": api.GetScopeList,

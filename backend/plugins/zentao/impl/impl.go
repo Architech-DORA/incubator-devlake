@@ -23,14 +23,11 @@ import (
 	"github.com/apache/incubator-devlake/core/context"
 	"github.com/apache/incubator-devlake/core/errors"
 	"github.com/apache/incubator-devlake/core/plugin"
-	"github.com/apache/incubator-devlake/core/runner"
 	helper "github.com/apache/incubator-devlake/helpers/pluginhelper/api"
-	"github.com/apache/incubator-devlake/impls/dalgorm"
 	"github.com/apache/incubator-devlake/plugins/zentao/api"
 	"github.com/apache/incubator-devlake/plugins/zentao/models"
 	"github.com/apache/incubator-devlake/plugins/zentao/models/migrationscripts"
 	"github.com/apache/incubator-devlake/plugins/zentao/tasks"
-	"github.com/spf13/viper"
 )
 
 // make sure interface is implemented
@@ -57,7 +54,6 @@ func (p Zentao) SubTaskMetas() []plugin.SubTaskMeta {
 	return []plugin.SubTaskMeta{
 		tasks.ConvertProductMeta,
 		tasks.ConvertProjectMeta,
-		tasks.DBGetChangelogMeta,
 		tasks.CollectExecutionMeta,
 		tasks.ExtractExecutionMeta,
 		tasks.ConvertExecutionMeta,
@@ -99,39 +95,10 @@ func (p Zentao) PrepareTaskData(taskCtx plugin.TaskContext, options map[string]i
 		return nil, errors.Default.Wrap(err, "unable to get Zentao API client instance: %v")
 	}
 
-	data := &tasks.ZentaoTaskData{
+	return &tasks.ZentaoTaskData{
 		Options:   op,
 		ApiClient: apiClient,
-	}
-
-	if connection.DbUrl != "" {
-		if connection.DbLoggingLevel == "" {
-			connection.DbLoggingLevel = taskCtx.GetConfig("DB_LOGGING_LEVEL")
-		}
-
-		if connection.DbIdleConns == 0 {
-			connection.DbIdleConns = taskCtx.GetConfigReader().GetInt("DB_IDLE_CONNS")
-		}
-
-		if connection.DbMaxConns == 0 {
-			connection.DbMaxConns = taskCtx.GetConfigReader().GetInt("DB_MAX_CONNS")
-		}
-
-		v := viper.New()
-		v.Set("DB_URL", connection.DbUrl)
-		v.Set("DB_LOGGING_LEVEL", connection.DbLoggingLevel)
-		v.Set("DB_IDLE_CONNS", connection.DbIdleConns)
-		v.Set("DbMaxConns", connection.DbMaxConns)
-
-		rgorm, err := runner.NewGormDb(v, taskCtx.GetLogger())
-		if err != nil {
-			return nil, errors.Default.Wrap(err, fmt.Sprintf("failed to connect to the zentao remote databases %s", connection.DbUrl))
-		}
-
-		data.RemoteDb = dalgorm.NewDalgorm(rgorm)
-	}
-
-	return data, nil
+	}, nil
 }
 
 // PkgPath information lost when compiled as plugin(.so)
@@ -164,14 +131,12 @@ func (p Zentao) ApiResources() map[string]map[string]plugin.ApiResourceHandler {
 			"PUT": api.PutProjectScope,
 		},
 		"connections/:connectionId/scopes/product/:scopeId": {
-			"GET":    api.GetProductScope,
-			"PATCH":  api.UpdateProductScope,
-			"DELETE": api.DeleteProductScope,
+			"GET":   api.GetProductScope,
+			"PATCH": api.UpdateProductScope,
 		},
 		"connections/:connectionId/scopes/project/:scopeId": {
-			"GET":    api.GetProjectScope,
-			"PATCH":  api.UpdateProjectScope,
-			"DELETE": api.DeleteProjectScope,
+			"GET":   api.GetProjectScope,
+			"PATCH": api.UpdateProjectScope,
 		},
 		"connections/:connectionId/remote-scopes": {
 			"GET": api.RemoteScopes,

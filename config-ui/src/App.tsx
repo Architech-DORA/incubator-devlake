@@ -17,20 +17,24 @@
  */
 
 import { Switch, Route, Redirect, Router } from 'react-router-dom';
+import { LoginPage } from './pages/login/login';
+import { history } from './utils/history';
 import { ErrorLayout, BaseLayout } from '@/layouts';
+import { FromEnum } from '@/pages';
 import {
-  LoginPage,
   OfflinePage,
   DBMigratePage,
-  ConnectionHomePage,
-  ConnectionDetailPage,
   ProjectHomePage,
   ProjectDetailPage,
+  ConnectionHomePage,
+  ConnectionListPage,
+  ConnectionFormPage,
   BlueprintHomePage,
+  BlueprintCreatePage,
   BlueprintDetailPage,
+  BlueprintConnectioAddPage,
   BlueprintConnectionDetailPage,
 } from '@/pages';
-import { history } from '@/utils';
 
 function App() {
   return (
@@ -63,13 +67,32 @@ function App() {
           component={() => (
             <BaseLayout>
               <Switch>
-                <Route exact path="/" component={() => <Redirect to="/connections" />} />
-                <Route exact path="/connections" component={() => <ConnectionHomePage />} />
-                <Route exact path="/connections/:plugin/:id" component={() => <ConnectionDetailPage />} />
+                <Route exact path="/" component={() => <Redirect to="/projects" />} />
                 <Route exact path="/projects" component={() => <ProjectHomePage />} />
                 <Route exact path="/projects/:pname" component={() => <ProjectDetailPage />} />
+                <Route
+                  exact
+                  path="/projects/:pname/:bid/connection-add"
+                  component={() => <BlueprintConnectioAddPage />}
+                />
+                <Route exact path="/projects/:pname/:bid/:unique" component={() => <BlueprintConnectionDetailPage />} />
+                <Route
+                  exact
+                  path="/projects/:pname/create-blueprint"
+                  component={() => <BlueprintCreatePage from={FromEnum.project} />}
+                />
+                <Route exact path="/connections" component={() => <ConnectionHomePage />} />
+                <Route exact path="/connections/:plugin" component={() => <ConnectionListPage />} />
+                <Route exact path="/connections/:plugin/create" component={() => <ConnectionFormPage />} />
+                <Route exact path="/connections/:plugin/:cid" component={() => <ConnectionFormPage />} />
                 <Route exact path="/blueprints" component={() => <BlueprintHomePage />} />
+                <Route
+                  exact
+                  path="/blueprints/create"
+                  component={() => <BlueprintCreatePage from={FromEnum.blueprint} />}
+                />
                 <Route exact path="/blueprints/:id" component={() => <BlueprintDetailPage />} />
+                <Route exact path="/blueprints/:bid/connection-add" component={() => <BlueprintConnectioAddPage />} />
                 <Route exact path="/blueprints/:bid/:unique" component={() => <BlueprintConnectionDetailPage />} />
               </Switch>
             </BaseLayout>

@@ -24,7 +24,7 @@ import { Popover2 } from '@blueprintjs/popover2';
 import { Dialog, PageHeader, PageLoading } from '@/components';
 import { EntitiesLabel } from '@/config';
 import { useRefreshData } from '@/hooks';
-import { DataScopeSelect, getPluginConfig, Transformation } from '@/plugins';
+import { DataScope, getPluginConfig, Transformation } from '@/plugins';
 
 import * as API from './api';
 import * as S from './styled';
@@ -169,7 +169,12 @@ export const BlueprintConnectionDetailPage = () => {
         style={{ width: 820 }}
         onCancel={handleHideDataScope}
       >
-        <DataScopeSelect plugin={connection.plugin} connectionId={connection.connectionId} />
+        <DataScope
+          connections={[connection]}
+          onCancel={handleHideDataScope}
+          onSubmit={handleChangeDataScope}
+          onNext={handleHideDataScope}
+        />
       </Dialog>
     </PageHeader>
   );

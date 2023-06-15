@@ -24,12 +24,16 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
-
 	"github.com/apache/incubator-devlake/core/errors"
-	"github.com/apache/incubator-devlake/core/utils"
+	"math/rand"
+	"time"
 )
 
 const EncodeKeyEnvStr = "ENCODE_KEY"
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
 
 // TODO: maybe move encryption/decryption into helper?
 // AES + Base64 encryption using ENCODE_KEY in .env as key
@@ -139,7 +143,27 @@ func AesDecrypt(crypted, key []byte) ([]byte, errors.Error) {
 	return origData, nil
 }
 
-// RandomEncKey will return a random string of length 128
-func RandomEncKey() (string, errors.Error) {
-	return utils.RandLetterBytes(128)
+// RandomCapsStr A random string of length len uppercase characters
+func RandomCapsStr(len int) string {
+	r := rand.New(rand.NewSource(time.Now().Unix()))
+	randomBytes := make([]byte, len)
+	for i := 0; i < len; i++ {
+		b := r.Intn(26) + 65
+		randomBytes[i] = byte(b)
+	}
+	return string(randomBytes)
+}
+
+func RandomEncKey() string {
+	return RandomCapsStr(128)
+}
+
+const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+func RandLetterBytes(n int) string {
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = letterBytes[rand.Intn(len(letterBytes))]
+	}
+	return string(b)
 }

@@ -23,7 +23,6 @@ import { useProxyPrefix } from '@/hooks';
 
 import type { ScopeItemType } from '../../types';
 import * as API from '../../api';
-import { getConnection } from '@/pages/blueprint/connection-detail/api';
 
 const DEFAULT_PAGE_SIZE = 30;
 
@@ -84,75 +83,42 @@ export const useMillerColumns = ({ connectionId }: UseMillerColumnsProps) => {
 
   useEffect(() => {
     (async () => {
-      const connection = await getConnection('github', connectionId);
+      const user = await API.getUser(prefix);
+      const orgs = await API.getUserOrgs(prefix, {
+        page: 1,
+        per_page: DEFAULT_PAGE_SIZE,
+      });
 
-      if (connection.authMethod === 'AppKey') {
-        const appInstallationRepos = await API.getInstallationRepos(prefix, {
-          page: 1,
-          per_page: 1,
-        });
+      const loaded = !orgs.length || orgs.length < DEFAULT_PAGE_SIZE;
 
-        setUser(null);
-        setLoaded(true, 'root', 2);
-
-        if (appInstallationRepos.total_count === 0) {
-          setItems([]);
-        } else {
-          setItems([
-            {
-              parentId: null,
-              id: appInstallationRepos.repositories[0].owner.login,
-              title: appInstallationRepos.repositories[0].owner.login,
-              type: 'org',
-            } as any,
-          ])
-        }
-      } else {
-        const user = await API.getUser(prefix);
-        const orgs = await API.getUserOrgs(prefix, {
-          page: 1,
-          per_page: DEFAULT_PAGE_SIZE,
-        });
-
-        const loaded = !orgs.length || orgs.length < DEFAULT_PAGE_SIZE;
-
-        setUser(user);
-        setLoaded(loaded, 'root', 2);
-        setItems([
-          {
-            parentId: null,
-            id: user.login,
-            title: user.login,
-            type: 'org',
-          },
-          ...formatOrgs(orgs),
-        ]);
-    }
+      setUser(user);
+      setLoaded(loaded, 'root', 2);
+      setItems([
+        {
+          parentId: null,
+          id: user.login,
+          title: user.login,
+          type: 'org',
+        },
+        ...formatOrgs(orgs),
+      ]);
     })();
   }, [prefix]);
 
   const onExpand = useCallback(
     async (id: McsID) => {
       const item = items.find((it) => it.id === id) as McsItem<ExtraType>;
-      let repos = [];
 
-      if (user && id === user.login) {
-        repos = await API.getUserRepos(prefix, {
-          page: 1,
-          per_page: DEFAULT_PAGE_SIZE,
-        });
-      } else if (user) {
-        repos = await API.getOrgRepos(prefix, item.title, {
-          page: 1,
-          per_page: DEFAULT_PAGE_SIZE,
-        });
-      } else {
-        const response = await API.getInstallationRepos(prefix, {
-          page: 1,
-          per_page: DEFAULT_PAGE_SIZE,
-        });
-        repos = response.repositories;
-      }
+      const isUser = id === user.login;
+      const repos = isUser
+        ? await API.getUserRepos(prefix, {
+            page: 1,
+            per_page: DEFAULT_PAGE_SIZE,
+          })
+        : await API.getOrgRepos(prefix, item.title, {
+            page: 1,
+            per_page: DEFAULT_PAGE_SIZE,
+          });
 
       const loaded = !repos.length || repos.length < DEFAULT_PAGE_SIZE;
       setLoaded(loaded, id, 2);
@@ -168,25 +134,18 @@ export const useMillerColumns = ({ connectionId }: UseMillerColumnsProps) => {
     let loaded = false;
 
     if (id) {
+      const isUser = id === user.login;
       const item = items.find((it) => it.id === id) as McsItem<ExtraType>;
 
-      if (user && id === user.login) {
-        repos = await API.getUserRepos(prefix, {
-          page: 1,
-          per_page: DEFAULT_PAGE_SIZE,
-        });
-      } else if (user) {
-        repos = await API.getOrgRepos(prefix, item.title, {
-          page: 1,
-          per_page: DEFAULT_PAGE_SIZE,
-        });
-      } else {
-        const response = await API.getInstallationRepos(prefix, {
-          page: 1,
-          per_page: DEFAULT_PAGE_SIZE,
-        });
-        repos = response.repositories;
-      }
+      repos = isUser
+        ? await API.getUserRepos(prefix, {
+            page,
+            per_page: DEFAULT_PAGE_SIZE,
+          })
+        : await API.getOrgRepos(prefix, item.title, {
+            page,
+            per_page: DEFAULT_PAGE_SIZE,
+          });
 
       loaded = !repos.length || repos.length < DEFAULT_PAGE_SIZE;
     } else {

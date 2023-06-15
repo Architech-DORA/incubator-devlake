@@ -29,14 +29,12 @@ import { useMillerColumns } from './use-miller-columns';
 import * as S from './styled';
 
 interface Props extends UseMillerColumnsProps {
-  disabledItems?: ScopeItemType[];
   selectedItems: ScopeItemType[];
   onChangeItems: (selectedItems: ScopeItemType[]) => void;
 }
 
-export const MillerColumns = ({ connectionId, disabledItems, selectedItems, onChangeItems }: Props) => {
+export const MillerColumns = ({ connectionId, selectedItems, onChangeItems }: Props) => {
   const [selectedIds, setSelectedIds] = useState<McsID[]>([]);
-  const [disabledIds, setDisabledIds] = useState<McsID[]>([]);
 
   const { items, getHasMore, onExpand, onScroll } = useMillerColumns({
     connectionId,
@@ -45,10 +43,6 @@ export const MillerColumns = ({ connectionId, disabledItems, selectedItems, onCh
   useEffect(() => {
     setSelectedIds(selectedItems.map((it) => it.githubId));
   }, [selectedItems]);
-
-  useEffect(() => {
-    setDisabledIds((disabledItems ?? []).map((it) => it.githubId));
-  }, [disabledIds]);
 
   const handleChangeItems = (selectedIds: McsID[]) => {
     const result = selectedIds.map((id) => {
@@ -92,7 +86,6 @@ export const MillerColumns = ({ connectionId, disabledItems, selectedItems, onCh
       columnHeight={300}
       renderTitle={renderTitle}
       renderLoading={renderLoading}
-      disabledIds={disabledIds}
       selectedIds={selectedIds}
       onSelectItemIds={handleChangeItems}
     />

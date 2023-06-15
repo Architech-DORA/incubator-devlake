@@ -18,7 +18,7 @@
 
 import { Intent } from '@blueprintjs/core';
 
-import { toast } from '@/components';
+import { Toast } from '@/components';
 
 export type OperateConfig = {
   setOperating?: (success: boolean) => void;
@@ -44,14 +44,22 @@ export const operator = async <T>(request: () => Promise<T>, config?: OperateCon
     const res = await request();
     const message = formatMessage?.() ?? 'Operation successfully completed';
     if (!config?.hideToast) {
-      toast.success(message);
+      Toast.show({
+        intent: Intent.SUCCESS,
+        message,
+        icon: 'endorsed',
+      });
     }
     return [true, res];
   } catch (err) {
     console.error('Operation failed.', err);
-    const reason = formatReason?.(err) ?? (err as any).response?.data?.message ?? 'Operation failed.';
+    const reason = formatReason?.(err) ?? 'Operation failed.';
     if (!config?.hideToast) {
-      toast.error(reason);
+      Toast.show({
+        intent: Intent.DANGER,
+        message: reason,
+        icon: 'error',
+      });
     }
 
     return [false];

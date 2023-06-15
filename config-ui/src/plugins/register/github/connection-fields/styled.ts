@@ -38,27 +38,25 @@ export const Endpoint = styled.div`
   }
 `;
 
-export const Input = styled.div`
+export const Token = styled.div`
+  display: flex;
+  align-items: center;
   margin-bottom: 8px;
 
   .input {
     display: flex;
     align-items: center;
-
-    .info {
-      margin-left: 4px;
-
-      span.error {
-        color: ${Colors.RED3};
-      }
-
-      span.success {
-        color: ${Colors.GREEN3};
-      }
-    }
   }
 
-  .warning {
-    margin-top: 8px;
+  .info {
+    margin-left: 4px;
+
+    span.error {
+      color: ${Colors.RED3};
+    }
+
+    span.success {
+      color: ${Colors.GREEN3};
+    }
   }
 `;

@@ -16,7 +16,7 @@
  *
  */
 
-import { useMemo } from 'react';
+import React, { useMemo } from 'react';
 
 import { DataScopeMillerColumns } from '@/plugins';
 
@@ -24,7 +24,6 @@ import type { ScopeItemType } from './types';
 
 interface Props {
   connectionId: ID;
-  disabledItems?: ScopeItemType[];
   selectedItems: ScopeItemType[];
   onChangeItems: (selectedItems: ScopeItemType[]) => void;
 }
@@ -35,11 +34,6 @@ export const BitbucketDataScope = ({ connectionId, onChangeItems, ...props }: Pr
     [props.selectedItems],
   );
 
-  const disabledItems = useMemo(
-    () => (props.disabledItems ?? []).map((it) => ({ id: `${it.bitbucketId}`, name: it.name, data: it })),
-    [props.disabledItems],
-  );
-
   return (
     <>
       <h3>Repositories *</h3>
@@ -47,7 +41,6 @@ export const BitbucketDataScope = ({ connectionId, onChangeItems, ...props }: Pr
       <DataScopeMillerColumns
         plugin="bitbucket"
         connectionId={connectionId}
-        disabledItems={disabledItems}
         selectedItems={selectedItems}
         onChangeItems={onChangeItems}
       />

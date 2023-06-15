@@ -18,8 +18,6 @@ limitations under the License.
 package tasks
 
 import (
-	"reflect"
-
 	"github.com/apache/incubator-devlake/core/dal"
 	"github.com/apache/incubator-devlake/core/errors"
 	"github.com/apache/incubator-devlake/core/models/domainlayer"
@@ -28,6 +26,7 @@ import (
 	"github.com/apache/incubator-devlake/core/plugin"
 	"github.com/apache/incubator-devlake/helpers/pluginhelper/api"
 	"github.com/apache/incubator-devlake/plugins/github/models"
+	"reflect"
 )
 
 var ConvertPullRequestsMeta = plugin.SubTaskMeta{
@@ -75,7 +74,7 @@ func ConvertPullRequests(taskCtx plugin.SubTaskContext) errors.Error {
 				},
 				BaseRepoId:     repoIdGen.Generate(data.Options.ConnectionId, pr.RepoId),
 				HeadRepoId:     repoIdGen.Generate(data.Options.ConnectionId, pr.HeadRepoId),
-				OriginalStatus: pr.State,
+				Status:         pr.State,
 				Title:          pr.Title,
 				Url:            pr.Url,
 				AuthorId:       accountIdGen.Generate(data.Options.ConnectionId, pr.AuthorId),
@@ -92,13 +91,6 @@ func ConvertPullRequests(taskCtx plugin.SubTaskContext) errors.Error {
 				BaseCommitSha:  pr.BaseCommitSha,
 				HeadRef:        pr.HeadRef,
 				HeadCommitSha:  pr.HeadCommitSha,
-			}
-			if pr.State == "open" || pr.State == "OPEN" {
-				domainPr.Status = code.OPEN
-			} else if (pr.State == "closed" && pr.MergedAt != nil) || pr.State == "MERGED" {
-				domainPr.Status = code.MERGED
-			} else {
-				domainPr.Status = code.CLOSED
 			}
 			return []interface{}{
 				domainPr,

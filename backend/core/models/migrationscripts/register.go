@@ -80,11 +80,5 @@ func All() []plugin.MigrationScript {
 		new(addCicdDeploymentCommits),
 		new(renameDeploymentIdForPrProjectMetric),
 		new(addCommitAuthoredDate),
-		new(addOriginalStatusToPullRequest20230508),
-		new(addIssueAssignee20230402),
-		new(addCalendarMonths),
-		new(modifyPrLabelsAndComments),
-		new(renameFinishedCommitsDiffs),
-		new(addUpdatedDateToIssueComments),
 	}
 }

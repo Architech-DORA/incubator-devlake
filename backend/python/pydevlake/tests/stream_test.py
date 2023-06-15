@@ -17,7 +17,7 @@
 import json
 
 import pytest
-from sqlmodel import SQLModel, Session, Field, create_engine
+from sqlmodel import Session, Field
 
 from pydevlake import Stream, Connection, Context, DomainType
 from pydevlake.model import ToolModel, DomainModel, ToolScope
@@ -59,12 +59,6 @@ class DummyConnection(Connection):
 
 
 @pytest.fixture
-def engine():
-    engine = create_engine("sqlite+pysqlite:///:memory:")
-    SQLModel.metadata.create_all(engine)
-    return engine
-
-@pytest.fixture
 def raw_data():
     return [
         {"i": 1, "n": "alice"},
@@ -83,9 +77,9 @@ def scope():
 
 
 @pytest.fixture
-def ctx(connection, scope, engine):
+def ctx(connection, scope):
     return Context(
-        engine=engine,
+        db_url="sqlite+pysqlite:///:memory:",
         scope=scope,
         connection=connection,
         options={}
@@ -111,7 +105,7 @@ def test_extract_data(stream, raw_data, ctx):
     with Session(ctx.engine) as session:
         for each in raw_data:
             raw_model = stream.raw_model(session)
-            raw_model.params = json.dumps({"connection_id": ctx.connection.id, "scope_id": ctx.scope.id}, separators=(',', ':'))
+            raw_model.params = json.dumps({"connection_id": ctx.connection.id, "scope_id": ctx.scope.id})
             session.add(raw_model(data=json.dumps(each)))
         session.commit()
 
@@ -137,7 +131,7 @@ def test_convert_data(stream, raw_data, ctx):
                     connection_id=ctx.connection.id,
                     name=each["n"],
                     raw_data_table="_raw_dummy_model",
-                    raw_data_params=json.dumps({"connection_id": ctx.connection.id, "scope_id": ctx.scope.id}, separators=(',', ':'))
+                    raw_data_params=json.dumps({"connection_id": ctx.connection.id, "scope_id": ctx.scope.id})
                 )
             )
         session.commit()

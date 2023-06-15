@@ -96,9 +96,6 @@ worker:
 dev:
 	make dev -C backend
 
-godev:
-	make godev -C backend
-
 debug:
 	make debug -C backend
 

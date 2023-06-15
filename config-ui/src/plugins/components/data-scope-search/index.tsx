@@ -26,12 +26,11 @@ import * as API from './api';
 interface Props {
   plugin: string;
   connectionId: ID;
-  disabledItems?: any[];
   selectedItems?: any[];
   onChangeItems?: (selectedItems: any[]) => void;
 }
 
-export const DataScopeSearch = ({ plugin, connectionId, disabledItems, selectedItems, onChangeItems }: Props) => {
+export const DataScopeSearch = ({ plugin, connectionId, selectedItems, onChangeItems }: Props) => {
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState<ItemType[]>([]);
   const [search, setSearch] = useState('');
@@ -69,7 +68,6 @@ export const DataScopeSearch = ({ plugin, connectionId, disabledItems, selectedI
       items={items}
       getKey={getKey}
       getName={getName}
-      disabledItems={disabledItems}
       selectedItems={selectedItems}
       onChangeItems={handleChangeItems}
       loading={loading}

@@ -136,23 +136,22 @@ var _ dal.Dal = (*Dalgorm)(nil)
 
 // Exec executes raw sql query
 func (d *Dalgorm) Exec(query string, params ...interface{}) errors.Error {
-	return d.convertGormError(d.db.Exec(query, transformParams(params)...).Error)
+	return errors.Convert(d.db.Exec(query, transformParams(params)...).Error)
 }
 
 // AutoMigrate runs auto migration for given models
 func (d *Dalgorm) AutoMigrate(entity interface{}, clauses ...dal.Clause) errors.Error {
-	err := buildTx(d.db, clauses).AutoMigrate(entity)
+	err := errors.Convert(buildTx(d.db, clauses).AutoMigrate(entity))
 	if err == nil {
 		// fix pg cache plan error
 		_ = d.First(entity, clauses...)
 	}
-	return d.convertGormError(err)
+	return err
 }
 
 // Cursor returns a database cursor, cursor is especially useful when handling big amount of rows of data
 func (d *Dalgorm) Cursor(clauses ...dal.Clause) (dal.Rows, errors.Error) {
-	rows, err := buildTx(d.db, clauses).Rows()
-	return rows, d.convertGormError(err)
+	return errors.Convert01(buildTx(d.db, clauses).Rows())
 }
 
 // CursorTx FIXME ...
@@ -163,7 +162,7 @@ func (d *Dalgorm) CursorTx(clauses ...dal.Clause) *gorm.DB {
 // Fetch loads row data from `cursor` into `dst`
 func (d *Dalgorm) Fetch(cursor dal.Rows, dst interface{}) errors.Error {
 	if rows, ok := cursor.(*sql.Rows); ok {
-		return d.convertGormError(d.db.ScanRows(rows, dst))
+		return errors.Convert(d.db.ScanRows(rows, dst))
 	} else {
 		return errors.Default.New(fmt.Sprintf("can not support type %s to be a dal.Rows interface", reflect.TypeOf(cursor).String()))
 	}
@@ -171,12 +170,12 @@ func (d *Dalgorm) Fetch(cursor dal.Rows, dst interface{}) errors.Error {
 
 // All loads matched rows from database to `dst`, USE IT WITH COUTIOUS!!
 func (d *Dalgorm) All(dst interface{}, clauses ...dal.Clause) errors.Error {
-	return d.convertGormError(buildTx(d.db, clauses).Find(dst).Error)
+	return errors.Convert(buildTx(d.db, clauses).Find(dst).Error)
 }
 
 // First loads first matched row from database to `dst`, error will be returned if no records were found
 func (d *Dalgorm) First(dst interface{}, clauses ...dal.Clause) errors.Error {
-	return d.convertGormError(buildTx(d.db, clauses).First(dst).Error)
+	return errors.Convert(buildTx(d.db, clauses).First(dst).Error)
 }
 
 // Count total records
@@ -188,37 +187,37 @@ func (d *Dalgorm) Count(clauses ...dal.Clause) (int64, errors.Error) {
 
 // Pluck used to query single column
 func (d *Dalgorm) Pluck(column string, dest interface{}, clauses ...dal.Clause) errors.Error {
-	return d.convertGormError(buildTx(d.db, clauses).Pluck(column, dest).Error)
+	return errors.Convert(buildTx(d.db, clauses).Pluck(column, dest).Error)
 }
 
 // Create insert record to database
 func (d *Dalgorm) Create(entity interface{}, clauses ...dal.Clause) errors.Error {
-	return d.convertGormError(buildTx(d.db, clauses).Create(entity).Error)
+	return errors.Convert(buildTx(d.db, clauses).Create(entity).Error)
 }
 
 // CreateWithMap insert record to database
 func (d *Dalgorm) CreateWithMap(entity interface{}, record map[string]interface{}) errors.Error {
-	return d.convertGormError(buildTx(d.db, nil).Model(entity).Clauses(clause.OnConflict{UpdateAll: true}).Create(record).Error)
+	return errors.Convert(buildTx(d.db, nil).Model(entity).Clauses(clause.OnConflict{UpdateAll: true}).Create(record).Error)
 }
 
 // Update updates record
 func (d *Dalgorm) Update(entity interface{}, clauses ...dal.Clause) errors.Error {
-	return d.convertGormError(buildTx(d.db, clauses).Save(entity).Error)
+	return errors.Convert(buildTx(d.db, clauses).Save(entity).Error)
 }
 
 // CreateOrUpdate tries to create the record, or fallback to update all if failed
 func (d *Dalgorm) CreateOrUpdate(entity interface{}, clauses ...dal.Clause) errors.Error {
-	return d.convertGormError(buildTx(d.db, clauses).Clauses(clause.OnConflict{UpdateAll: true}).Create(entity).Error)
+	return errors.Convert(buildTx(d.db, clauses).Clauses(clause.OnConflict{UpdateAll: true}).Create(entity).Error)
 }
 
 // CreateIfNotExist tries to create the record if not exist
 func (d *Dalgorm) CreateIfNotExist(entity interface{}, clauses ...dal.Clause) errors.Error {
-	return d.convertGormError(buildTx(d.db, clauses).Clauses(clause.OnConflict{DoNothing: true}).Create(entity).Error)
+	return errors.Convert(buildTx(d.db, clauses).Clauses(clause.OnConflict{DoNothing: true}).Create(entity).Error)
 }
 
 // Delete records from database
 func (d *Dalgorm) Delete(entity interface{}, clauses ...dal.Clause) errors.Error {
-	return d.convertGormError(buildTx(d.db, clauses).Delete(entity).Error)
+	return errors.Convert(buildTx(d.db, clauses).Delete(entity).Error)
 }
 
 // UpdateColumn allows you to update mulitple records
@@ -227,7 +226,7 @@ func (d *Dalgorm) UpdateColumn(entityOrTable interface{}, columnName string, val
 		value = gorm.Expr(expr.Expr, transformParams(expr.Params)...)
 	}
 	clauses = append(clauses, dal.From(entityOrTable))
-	return d.convertGormError(buildTx(d.db, clauses).Update(columnName, value).Error)
+	return errors.Convert(buildTx(d.db, clauses).Update(columnName, value).Error)
 }
 
 // UpdateColumns allows you to update multiple columns of mulitple records
@@ -242,19 +241,19 @@ func (d *Dalgorm) UpdateColumns(entityOrTable interface{}, set []dal.DalSet, cla
 	}
 
 	clauses = append(clauses, dal.From(entityOrTable))
-	return d.convertGormError(buildTx(d.db, clauses).Updates(updatesSet).Error)
+	return errors.Convert(buildTx(d.db, clauses).Updates(updatesSet).Error)
 }
 
 // UpdateAllColumn updated all Columns of entity
 func (d *Dalgorm) UpdateAllColumn(entity interface{}, clauses ...dal.Clause) errors.Error {
-	return d.convertGormError(buildTx(d.db, clauses).UpdateColumns(entity).Error)
+	return errors.Convert(buildTx(d.db, clauses).UpdateColumns(entity).Error)
 }
 
 // GetColumns FIXME ...
 func (d *Dalgorm) GetColumns(dst dal.Tabler, filter func(columnMeta dal.ColumnMeta) bool) (cms []dal.ColumnMeta, _ errors.Error) {
 	columnTypes, err := d.db.Migrator().ColumnTypes(dst.TableName())
 	if err != nil {
-		return nil, d.convertGormError(err)
+		return nil, errors.Convert(err)
 	}
 	for _, columnType := range columnTypes {
 		if filter == nil {
@@ -263,7 +262,7 @@ func (d *Dalgorm) GetColumns(dst dal.Tabler, filter func(columnMeta dal.ColumnMe
 			cms = append(cms, columnType)
 		}
 	}
-	return cms, nil
+	return errors.Convert01(cms, nil)
 }
 
 // AddColumn add one column for the table
@@ -287,7 +286,7 @@ func (d *Dalgorm) DropColumns(table string, columnNames ...string) errors.Error 
 		err := d.Exec("ALTER TABLE ? DROP COLUMN ?", clause.Table{Name: table}, clause.Column{Name: columnName})
 		// err := d.db.Migrator().DropColumn(table, columnName)
 		if err != nil {
-			return d.convertGormError(err)
+			return errors.Convert(err)
 		}
 	}
 	return nil
@@ -326,7 +325,7 @@ func (d *Dalgorm) AllTables() ([]string, errors.Error) {
 	var tables []string
 	err := d.db.Raw(tableSql).Scan(&tables).Error
 	if err != nil {
-		return nil, d.convertGormError(err)
+		return nil, errors.Convert(err)
 	}
 	var filteredTables []string
 	for _, table := range tables {
@@ -339,7 +338,7 @@ func (d *Dalgorm) AllTables() ([]string, errors.Error) {
 
 // DropTables drop multiple tables by Model Pointer or Table Name
 func (d *Dalgorm) DropTables(dst ...interface{}) errors.Error {
-	return d.convertGormError(d.db.Migrator().DropTable(dst...))
+	return errors.Convert(d.db.Migrator().DropTable(dst...))
 }
 
 // HasTable checks if table exists
@@ -349,8 +348,7 @@ func (d *Dalgorm) HasTable(table interface{}) bool {
 
 // RenameTable renames table name
 func (d *Dalgorm) RenameTable(oldName, newName string) errors.Error {
-	err := d.db.Migrator().RenameTable(oldName, newName)
-	return d.convertGormError(err)
+	return errors.Convert(d.db.Migrator().RenameTable(oldName, newName))
 }
 
 // DropIndexes drops indexes for specified table
@@ -358,7 +356,7 @@ func (d *Dalgorm) DropIndexes(table string, indexNames ...string) errors.Error {
 	for _, indexName := range indexNames {
 		err := d.db.Migrator().DropIndex(table, indexName)
 		if err != nil {
-			return d.convertGormError(err)
+			return errors.Convert(err)
 		}
 	}
 	return nil
@@ -384,35 +382,21 @@ func (d *Dalgorm) Begin() dal.Transaction {
 }
 
 // IsErrorNotFound checking if the sql error is not found.
-func (d *Dalgorm) IsErrorNotFound(err error) bool {
+func (d *Dalgorm) IsErrorNotFound(err errors.Error) bool {
 	return errors.Is(err, gorm.ErrRecordNotFound)
 }
 
 // IsDuplicationError checking if the sql error is not found.
-func (d *Dalgorm) IsDuplicationError(err error) bool {
+func (d *Dalgorm) IsDuplicationError(err errors.Error) bool {
 	return strings.Contains(strings.ToLower(err.Error()), "duplicate")
 }
 
 // RawCursor (Deprecated) executes raw sql query and returns a database cursor
 func (d *Dalgorm) RawCursor(query string, params ...interface{}) (*sql.Rows, errors.Error) {
-	rows, err := d.db.Raw(query, params...).Rows()
-	return rows, d.convertGormError(err)
+	return errors.Convert01(d.db.Raw(query, params...).Rows())
 }
 
 // NewDalgorm creates a *Dalgorm
 func NewDalgorm(db *gorm.DB) *Dalgorm {
 	return &Dalgorm{db}
-}
-
-func (d *Dalgorm) convertGormError(err error) errors.Error {
-	if err == nil {
-		return nil
-	}
-	if d.IsErrorNotFound(err) {
-		return errors.NotFound.WrapRaw(err)
-	}
-	if d.IsDuplicationError(err) {
-		return errors.BadInput.WrapRaw(err)
-	}
-	return errors.Default.WrapRaw(err)
 }

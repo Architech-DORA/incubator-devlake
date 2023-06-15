@@ -95,7 +95,6 @@ func (p Tapd) Description() string {
 
 func (p Tapd) SubTaskMetas() []plugin.SubTaskMeta {
 	return []plugin.SubTaskMeta{
-		tasks.ConvertWorkspaceMeta,
 		tasks.CollectWorkitemTypesMeta,
 		tasks.ExtractWorkitemTypesMeta,
 		tasks.CollectStoryCustomFieldsMeta,
@@ -278,9 +277,8 @@ func (p Tapd) ApiResources() map[string]map[string]plugin.ApiResourceHandler {
 			"GET": api.Proxy,
 		},
 		"connections/:connectionId/scopes/:scopeId": {
-			"GET":    api.GetScope,
-			"PATCH":  api.UpdateScope,
-			"DELETE": api.DeleteScope,
+			"GET":   api.GetScope,
+			"PATCH": api.UpdateScope,
 		},
 		"connections/:connectionId/remote-scopes-prepare-token": {
 			"GET": api.PrepareFirstPageToken,

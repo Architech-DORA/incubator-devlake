@@ -31,7 +31,7 @@ type JiraRemotelink struct {
 	RemotelinkId uint64 `gorm:"primarykey"`
 	IssueId      uint64 `gorm:"index"`
 	RawJson      datatypes.JSON
-	Self         string
+	Self         string `gorm:"type:varchar(255)"`
 	Title        string
 	Url          string
 	IssueUpdated *time.Time

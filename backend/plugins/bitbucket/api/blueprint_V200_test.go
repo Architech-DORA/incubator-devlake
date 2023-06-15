@@ -133,20 +133,18 @@ func TestMakeDataSourcePipelinePlanV200(t *testing.T) {
 // NewMockBasicRes FIXME ...
 func NewMockBasicRes() *mockcontext.BasicRes {
 	testBitbucketRepo := &models.BitbucketRepo{
-		ConnectionId:  1,
-		BitbucketId:   "likyh/likyhphp",
-		Name:          "test/testRepo",
-		CloneUrl:      "https://this_is_cloneUrl",
-		ScopeConfigId: 1,
+		ConnectionId:         1,
+		BitbucketId:          "likyh/likyhphp",
+		Name:                 "test/testRepo",
+		CloneUrl:             "https://this_is_cloneUrl",
+		TransformationRuleId: 1,
 	}
 
-	testScopeConfig := &models.BitbucketScopeConfig{
-		ScopeConfig: common.ScopeConfig{
-			Model: common.Model{
-				ID: 1,
-			},
+	testTransformationRule := &models.BitbucketTransformationRule{
+		Model: common.Model{
+			ID: 1,
 		},
-		Name:            "Bitbucket scope config",
+		Name:            "Bitbucket transformation rule",
 		IssueStatusTodo: "new,open,wantfix",
 		Refdiff: map[string]interface{}{
 			"tagsPattern": "pattern",
@@ -163,8 +161,8 @@ func NewMockBasicRes() *mockcontext.BasicRes {
 	}).Return(nil).Once()
 
 	mockDal.On("First", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
-		dst := args.Get(0).(*models.BitbucketScopeConfig)
-		*dst = *testScopeConfig
+		dst := args.Get(0).(*models.BitbucketTransformationRule)
+		*dst = *testTransformationRule
 	}).Return(nil).Once()
 
 	mockRes.On("GetDal").Return(mockDal)

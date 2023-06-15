@@ -135,13 +135,13 @@ func (r *RemoteApiHelper[Conn, Scope, ApiScope, Group]) GetScopesFromRemote(inpu
 	getGroup func(basicRes coreContext.BasicRes, gid string, queryData *RemoteQueryData, connection Conn) ([]Group, errors.Error),
 	getScope func(basicRes coreContext.BasicRes, gid string, queryData *RemoteQueryData, connection Conn) ([]ApiScope, errors.Error),
 ) (*plugin.ApiResourceOutput, errors.Error) {
-	connectionId, err := errors.Convert01(strconv.ParseUint(input.Params["connectionId"], 10, 64))
-	if err != nil || connectionId == 0 {
+	connectionId, _ := extractFromReqParam(input.Params)
+	if connectionId == 0 {
 		return nil, errors.BadInput.New("invalid connectionId")
 	}
 
 	var connection Conn
-	err = r.connHelper.First(&connection, input.Params)
+	err := r.connHelper.First(&connection, input.Params)
 	if err != nil {
 		return nil, err
 	}
@@ -160,7 +160,7 @@ func (r *RemoteApiHelper[Conn, Scope, ApiScope, Group]) GetScopesFromRemote(inpu
 	gid := groupId[0]
 	queryData, err := getPageDataFromPageToken(pageToken[0])
 	if err != nil {
-		return nil, errors.BadInput.New("failed to get page token")
+		return nil, errors.BadInput.New("failed to get paget token")
 	}
 
 	outputBody := &RemoteScopesOutput{}
@@ -244,16 +244,14 @@ func (r *RemoteApiHelper[Conn, Scope, ApiScope, Group]) GetScopesFromRemote(inpu
 	return &plugin.ApiResourceOutput{Body: outputBody, Status: http.StatusOK}, nil
 }
 
-func (r *RemoteApiHelper[Conn, Scope, ApiScope, Group]) SearchRemoteScopes(input *plugin.ApiResourceInput,
-	searchScope func(basicRes coreContext.BasicRes, queryData *RemoteQueryData, connection Conn) ([]ApiScope, errors.Error),
-) (*plugin.ApiResourceOutput, errors.Error) {
-	connectionId, err := errors.Convert01(strconv.ParseUint(input.Params["connectionId"], 10, 64))
-	if err != nil || connectionId == 0 {
+func (r *RemoteApiHelper[Conn, Scope, ApiScope, Group]) SearchRemoteScopes(input *plugin.ApiResourceInput, searchScope func(basicRes coreContext.BasicRes, queryData *RemoteQueryData, connection Conn) ([]ApiScope, errors.Error)) (*plugin.ApiResourceOutput, errors.Error) {
+	connectionId, _ := extractFromReqParam(input.Params)
+	if connectionId == 0 {
 		return nil, errors.BadInput.New("invalid connectionId")
 	}
 
 	var connection Conn
-	err = r.connHelper.First(&connection, input.Params)
+	err := r.connHelper.First(&connection, input.Params)
 	if err != nil {
 		return nil, err
 	}

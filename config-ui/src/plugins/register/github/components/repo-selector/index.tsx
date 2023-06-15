@@ -16,6 +16,8 @@
  *
  */
 
+import React from 'react';
+
 import { MultiSelector } from '@/components';
 
 import { ScopeItemType } from '../../types';
@@ -23,12 +25,11 @@ import { ScopeItemType } from '../../types';
 import { useRepoSelector, UseRepoSelectorProps } from './use-repo-selector';
 
 interface Props extends UseRepoSelectorProps {
-  disabledItems?: ScopeItemType[];
   selectedItems: ScopeItemType[];
   onChangeItems: (selectedItems: ScopeItemType[]) => void;
 }
 
-export const RepoSelector = ({ disabledItems, selectedItems, onChangeItems, ...props }: Props) => {
+export const RepoSelector = ({ selectedItems, onChangeItems, ...props }: Props) => {
   const { loading, items, onSearch } = useRepoSelector(props);
 
   return (
@@ -37,7 +38,6 @@ export const RepoSelector = ({ disabledItems, selectedItems, onChangeItems, ...p
       items={items}
       getKey={(it) => it.githubId}
       getName={(it) => it.name}
-      disabledItems={disabledItems}
       selectedItems={selectedItems}
       onChangeItems={onChangeItems}
       loading={loading}

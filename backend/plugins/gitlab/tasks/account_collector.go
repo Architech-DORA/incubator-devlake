@@ -19,7 +19,6 @@ package tasks
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/url"
 
@@ -55,11 +54,12 @@ func CollectAccounts(taskCtx plugin.SubTaskContext) errors.Error {
 		RawDataSubTaskArgs: *rawDataSubTaskArgs,
 		ApiClient:          data.ApiClient,
 		UrlTemplate:        urlTemplate,
-		PageSize:           100,
+		//PageSize:           100,
 		Query: func(reqData *api.RequestData) (url.Values, errors.Error) {
 			query := url.Values{}
-			query.Set("page", fmt.Sprintf("%v", reqData.Pager.Page))
-			query.Set("per_page", fmt.Sprintf("%v", reqData.Pager.Size))
+			// query.Set("sort", "asc")
+			// query.Set("page", fmt.Sprintf("%v", reqData.Pager.Page))
+			// query.Set("per_page", fmt.Sprintf("%v", reqData.Pager.Size))
 			return query, nil
 		},
 

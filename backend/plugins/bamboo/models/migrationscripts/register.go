@@ -27,6 +27,5 @@ func All() []plugin.MigrationScript {
 		new(addInitTables),
 		new(addConnectionIdToTransformationRule),
 		new(addTypeAndEnvironment),
-		new(renameTr2ScopeConfig),
 	}
 }

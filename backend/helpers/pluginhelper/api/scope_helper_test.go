@@ -257,7 +257,6 @@ func TestScopeApiHelper_Put(t *testing.T) {
 	mockDal.On("CreateOrUpdate", mock.Anything, mock.Anything).Return(nil)
 	mockDal.On("First", mock.Anything, mock.Anything).Return(nil)
 	mockDal.On("All", mock.Anything, mock.Anything).Return(nil)
-	mockDal.On("AllTables").Return(nil, nil)
 
 	connHelper := NewConnectionHelper(mockRes, nil)
 
@@ -295,10 +294,8 @@ func TestScopeApiHelper_Put(t *testing.T) {
 				"updatedDate":          "string",
 			}}}}
 
-	params := &ReflectionParameters{}
-	dbHelper := NewScopeDatabaseHelperImpl[TestConnection, TestRepo, TestTransformationRule](mockRes, connHelper, params)
 	// create a mock ScopeApiHelper with a mock database connection
-	apiHelper := NewScopeHelper[TestConnection, TestRepo, TestTransformationRule](mockRes, nil, connHelper, dbHelper, params, nil)
+	apiHelper := &ScopeApiHelper[TestConnection, TestRepo, TestTransformationRule]{db: mockDal, connHelper: connHelper}
 	// test a successful call to Put
 	_, err := apiHelper.Put(input)
 	assert.NoError(t, err)

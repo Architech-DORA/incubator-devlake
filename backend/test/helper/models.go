@@ -18,7 +18,6 @@ limitations under the License.
 package helper
 
 import (
-	"github.com/apache/incubator-devlake/core/models"
 	"time"
 
 	"github.com/apache/incubator-devlake/core/plugin"
@@ -35,12 +34,6 @@ type (
 		ProjectDescription string
 		EnableDora         bool
 		MetricPlugins      []ProjectPlugin
-	}
-
-	ScopeResponse struct {
-		Scope                  any
-		TransformationRuleName string
-		Blueprints             []*models.Blueprint
 	}
 )
 

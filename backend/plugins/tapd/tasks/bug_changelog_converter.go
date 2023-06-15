@@ -99,20 +99,10 @@ func ConvertBugChangelog(taskCtx plugin.SubTaskContext) errors.Error {
 			}
 			if domainCl.FieldId == "iteration_id" {
 				domainCl.FieldName = "Sprint"
-				if cl.IterationIdFrom == 0 {
-					domainCl.OriginalFromValue = ""
-					domainCl.FromValue = ""
-				} else {
-					domainCl.OriginalFromValue = clIterIdGen.Generate(cl.ConnectionId, cl.IterationIdFrom)
-					domainCl.FromValue = cl.ValueBeforeParsed
-				}
-				if cl.IterationIdTo == 0 {
-					domainCl.OriginalToValue = ""
-					domainCl.ToValue = ""
-				} else {
-					domainCl.OriginalToValue = clIterIdGen.Generate(cl.ConnectionId, cl.IterationIdTo)
-					domainCl.ToValue = cl.ValueAfterParsed
-				}
+				domainCl.OriginalFromValue = clIterIdGen.Generate(cl.ConnectionId, cl.IterationIdFrom)
+				domainCl.OriginalToValue = clIterIdGen.Generate(cl.ConnectionId, cl.IterationIdTo)
+				domainCl.ToValue = cl.ValueAfterParsed
+				domainCl.FromValue = cl.ValueBeforeParsed
 			}
 			if domainCl.FieldId == "current_owner" {
 				domainCl.FieldName = "assignee"

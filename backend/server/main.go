@@ -19,7 +19,6 @@ package main
 
 import (
 	"github.com/apache/incubator-devlake/core/config"
-	"github.com/apache/incubator-devlake/core/errors"
 	"github.com/apache/incubator-devlake/core/plugin"
 	_ "github.com/apache/incubator-devlake/core/version"
 	"github.com/apache/incubator-devlake/server/api"
@@ -29,14 +28,10 @@ func main() {
 	v := config.GetConfig()
 	encKey := v.GetString(plugin.EncodeKeyEnvStr)
 	if encKey == "" {
-		var err errors.Error
 		// Randomly generate a bunch of encryption keys and set them to config
-		encKey, err = plugin.RandomEncKey()
-		if err != nil {
-			panic(err)
-		}
+		encKey = plugin.RandomEncKey()
 		v.Set(plugin.EncodeKeyEnvStr, encKey)
-		err = config.WriteConfig(v)
+		err := config.WriteConfig(v)
 		if err != nil {
 			panic(err)
 		}

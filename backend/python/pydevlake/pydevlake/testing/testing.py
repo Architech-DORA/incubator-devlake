@@ -17,8 +17,6 @@ import pytest
 
 from typing import Union, Type, Iterable, Generator, Optional
 
-from sqlmodel import create_engine
-
 from pydevlake.context import Context
 from pydevlake.plugin import Plugin
 from pydevlake.message import RemoteScopeGroup, PipelineTask
@@ -51,7 +49,7 @@ class ContextBuilder:
 
     def build(self):
         return Context(
-            engine=create_engine('sqlite:///:memory:'),
+            db_url='sqlite:///:memory:',
             scope=self.scope,
             connection=self.connection,
             transformation_rule=self.transformation_rule
@@ -80,7 +78,7 @@ def assert_stream_run(stream: Stream, connection: Connection, scope: ToolScope, 
     """
     Test that a stream can run all 3 steps without error.
     """
-    ctx = ContextBuilder().with_connection(connection).with_scope(scope).with_transformation_rule(transformation_rule).build()
+    ctx = Context(db_url='sqlite:///:memory:', connection=connection, scope=scope, transformation_rule=transformation_rule)
     stream.collector.run(ctx)
     stream.extractor.run(ctx)
     stream.convertor.run(ctx)

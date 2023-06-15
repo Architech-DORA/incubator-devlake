@@ -18,8 +18,6 @@ limitations under the License.
 package tasks
 
 import (
-	"reflect"
-
 	"github.com/apache/incubator-devlake/core/dal"
 	"github.com/apache/incubator-devlake/core/errors"
 	"github.com/apache/incubator-devlake/core/models/domainlayer"
@@ -31,6 +29,7 @@ import (
 	"github.com/apache/incubator-devlake/core/plugin"
 	helper "github.com/apache/incubator-devlake/helpers/pluginhelper/api"
 	"github.com/apache/incubator-devlake/plugins/gitlab/models"
+	"reflect"
 )
 
 const RAW_PROJECT_TABLE = "gitlab_api_project"
@@ -105,7 +104,7 @@ func convertToRepositoryModel(project *models.GitlabProject) *code.Repo {
 		DomainEntity: domainlayer.DomainEntity{
 			Id: didgen.NewDomainIdGenerator(project).Generate(project.ConnectionId, project.GitlabId),
 		},
-		Name:        project.PathWithNamespace,
+		Name:        project.Name,
 		Url:         project.WebUrl,
 		Description: project.Description,
 		ForkedFrom:  project.ForkedFromProjectWebUrl,
@@ -120,7 +119,7 @@ func convertToBoardModel(project *models.GitlabProject) *ticket.Board {
 		DomainEntity: domainlayer.DomainEntity{
 			Id: didgen.NewDomainIdGenerator(project).Generate(project.ConnectionId, project.GitlabId),
 		},
-		Name:        project.PathWithNamespace,
+		Name:        project.Name,
 		Url:         project.WebUrl,
 		Description: project.Description,
 		CreatedDate: project.CreatedDate,
@@ -141,7 +140,7 @@ func convertToCicdScopeModel(project *models.GitlabProject) *devops.CicdScope {
 		DomainEntity: domainlayer.DomainEntity{
 			Id: didgen.NewDomainIdGenerator(project).Generate(project.ConnectionId, project.GitlabId),
 		},
-		Name:        project.PathWithNamespace,
+		Name:        project.Name,
 		Url:         project.WebUrl,
 		Description: project.Description,
 		CreatedDate: project.CreatedDate,

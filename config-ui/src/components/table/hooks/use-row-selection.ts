@@ -23,13 +23,13 @@ export interface UseRowSelectionProps<T> {
   rowSelection?: {
     rowKey: string;
     type?: 'checkbox' | 'radio';
-    selectedRowKeys?: string[];
-    onChange?: (selectedRowKeys: string[]) => void;
+    selectedRowKeys?: ID[];
+    onChange?: (selectedRowKeys: ID[]) => void;
   };
 }
 
 export const useRowSelection = <T>({ dataSource, rowSelection }: UseRowSelectionProps<T>) => {
-  const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
+  const [selectedKeys, setSelectedKeys] = useState<ID[]>([]);
 
   const {
     rowKey = 'key',
@@ -48,7 +48,7 @@ export const useRowSelection = <T>({ dataSource, rowSelection }: UseRowSelection
 
   const handleChecked = (data: T) => {
     const key = (data as any)[rowKey];
-    let result: string[] = selectedKeys;
+    let result: ID[] = selectedKeys;
 
     switch (true) {
       case !selectedKeys.includes(key) && type === 'radio':
@@ -66,7 +66,7 @@ export const useRowSelection = <T>({ dataSource, rowSelection }: UseRowSelection
   };
 
   const handleCheckedAll = () => {
-    let result: string[] = [];
+    let result: ID[] = [];
 
     if (selectedKeys.length !== dataSource.length) {
       result = dataSource.map((data: any) => data[rowKey]);

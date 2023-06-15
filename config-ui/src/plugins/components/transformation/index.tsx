@@ -49,7 +49,7 @@ export const Transformation = ({
   onSubmit,
   onNext,
 }: Props) => {
-  const [selected, setSelected] = useState<Record<string, string[]>>({});
+  const [selected, setSelected] = useState<Record<string, ID[]>>({});
   const [connection, setConnection] = useState<MixConnection>();
   const [tid, setTid] = useState<ID>();
 
@@ -76,14 +76,14 @@ export const Transformation = ({
           return cs;
         }
 
-        const scope = cs.scope.map((sc) => {
+        const origin = cs.origin.map((sc) => {
           if (!scopeIds.includes(sc[getPluginId(cs.plugin)])) {
             return sc;
           }
           return scopes.find((it) => it[getPluginId(cs.plugin)] === sc[getPluginId(cs.plugin)]);
         });
 
-        return { ...cs, scope };
+        return { ...cs, origin };
       }),
     );
     setSelected({
@@ -145,7 +145,7 @@ export const Transformation = ({
                   ),
               },
             ]}
-            dataSource={cs.scope}
+            dataSource={cs.origin}
             rowSelection={
               cs.transformationType === 'for-connection'
                 ? {

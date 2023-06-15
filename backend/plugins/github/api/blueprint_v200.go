@@ -18,7 +18,6 @@ limitations under the License.
 package api
 
 import (
-	"context"
 	"fmt"
 	"net/url"
 	"strings"
@@ -44,13 +43,6 @@ func MakeDataSourcePipelinePlanV200(subtaskMetas []plugin.SubTaskMeta, connectio
 	// get the connection info for url
 	connection := &models.GithubConnection{}
 	err := connectionHelper.FirstById(connection, connectionId)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// needed for the connection to populate its access tokens
-	// if AppKey authentication method is selected
-	_, err = helper.NewApiClientFromConnection(context.TODO(), basicRes, connection)
 	if err != nil {
 		return nil, nil, err
 	}

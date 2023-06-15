@@ -18,22 +18,27 @@
 
 import styled from 'styled-components';
 
-export const DialogWrapper = styled.div`
-  .bp4-form-group + .bp4-form-group {
-    margin-top: 40px;
-    margin-bottom: 0;
+export const DialogInner = styled.div`
+  .block + .block {
+    margin-top: 24px;
   }
-`;
 
-export const Label = styled.label`
-  font-size: 16px;
-  font-weight: 600;
-`;
+  .bp4-input-group {
+    width: 386px;
+  }
 
-export const LabelInfo = styled.i`
-  color: #ff8b8b;
-`;
+  .checkbox {
+    display: flex;
+    margin-top: 8px;
 
-export const LabelDescription = styled.p`
-  margin: 0;
+    & > .bp4-control {
+      margin: 0;
+    }
+
+    & > p {
+      display: flex;
+      align-items: center;
+      margin: 0 0 0 16px;
+    }
+  }
 `;
