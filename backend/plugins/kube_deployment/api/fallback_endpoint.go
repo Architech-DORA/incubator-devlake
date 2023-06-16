@@ -29,7 +29,7 @@ import (
 // @Success 200  {object} KubeDeploymentTestConnResponse "Success"
 // @Failure 400  {string} errcode.Error "Bad Request"
 // @Failure 500  {string} errcode.Error "Internal Error"
-// @Router /plugins/kube_deployment/fallback
+// @Router /plugins/kube_deployment/fallback [POST]
 func FallbackEndpoint(input *plugin.ApiResourceInput) (*plugin.ApiResourceOutput, errors.Error) {
 	body := KubeDeploymentTestConnResponse{}
 	body.Success = true
