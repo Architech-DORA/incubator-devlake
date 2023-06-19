@@ -19,7 +19,6 @@ package helper
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -41,9 +40,6 @@ func (k *KubeApiClient) TestConnection() error {
 
 func NewKubeApiClient(credentials map[string]interface{}) *KubeApiClient {
 	println("credentials: ", credentials)
-	jsonData, _ := json.Marshal(credentials)
-	fmt.Println(string(jsonData))
-	fmt.Println(credentials["accessKey"])
 	providerType, ok := credentials["providerType"].(string)
 
 	if providerType == "" || !ok {
@@ -54,10 +50,6 @@ func NewKubeApiClient(credentials map[string]interface{}) *KubeApiClient {
 	var kubeApiClient *kubernetes.Clientset
 
 	if providerType == "azure" {
-		fmt.Println("Create Azure Kube Client")
-		fmt.Println("providerType: ", providerType)
-		clientID := credentials["clientId"].(string)
-		fmt.Println("clientID: ", clientID)
 		kubeApiClient = createAzureClientConfig(credentials)
 	} else if providerType == "local" {
 		fmt.Println("Create Local Kube Client")
@@ -70,14 +62,13 @@ func NewKubeApiClient(credentials map[string]interface{}) *KubeApiClient {
 }
 
 func createAzureClientConfig(creds map[string]interface{}) *kubernetes.Clientset {
-	clientID := creds["clientId"].(string)
+	clientID := creds["clientID"].(string)
 	clientSecret := creds["clientSecret"].(string)
-	tenantID := creds["tenantId"].(string)
-	subscriptionID := creds["subscriptionId"].(string)
+	tenantID := creds["tenantID"].(string)
+	subscriptionID := creds["subscriptionID"].(string)
 	clusterName := creds["clusterName"].(string)
 	resourceGroupName := creds["resourceGroupName"].(string)
 	fmt.Println("clientID: ", clientID)
-	fmt.Println("clientSecret: ", clientSecret)
 	fmt.Println("tenantID: ", tenantID)
 	fmt.Println("subscriptionID: ", subscriptionID)
 	fmt.Println("clusterName: ", clusterName)
@@ -121,7 +112,7 @@ func createAzureClientConfig(creds map[string]interface{}) *kubernetes.Clientset
 
 func createClientConfig() *kubernetes.Clientset {
 
-	kubeconfig := "/Users/johnpaulbelga/.kube/config"
+	kubeconfig := "~/.kube/config"
 
 	// Build the client config from the kubeconfig file
 	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
