@@ -21,7 +21,9 @@ jobs:
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
       - name: Create and use buildx builder
-        run: docker buildx create --use --name=builder1
+        run: |
+          docker buildx create --use --name=builder1
+          docker buildx inspect --bootstrap
       - name: Login to Azure Container Registry
         uses: azure/docker-login@v1
         with:
