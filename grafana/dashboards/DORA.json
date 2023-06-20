@@ -43,6 +43,307 @@
       "type": "text"
     },
     {
+      "id": 23763571993,
+      "gridPos": {
+        "h": 8,
+        "w": 5,
+        "x": 0,
+        "y": 0
+      },
+      "type": "table",
+      "title": "Kubernetes Deployment Revision Count",
+      "datasource": "mysql",
+      "pluginVersion": "8.0.6",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "displayMode": "auto"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "mappings": [],
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "format": "table",
+          "group": [
+            {
+              "params": [
+                "deployment_name"
+              ],
+              "type": "column"
+            }
+          ],
+          "hide": false,
+          "metricColumn": "none",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  deployment_name AS \"Kubernetes Deployment\", count(deployment_name) AS \"Total Deployment Revision Count\"\nFROM _tool_kube_deployment_revisions\nWHERE\n  $__timeFilter(creation_timestamp)\nGROUP BY deployment_name;",
+          "refId": "A",
+          "select": [
+            [
+              {
+                "params": [
+                  "_raw_data_id"
+                ],
+                "type": "column"
+              },
+              {
+                "params": [
+                  "sum"
+                ],
+                "type": "aggregate"
+              },
+              {
+                "params": [
+                  "_raw_data_id"
+                ],
+                "type": "alias"
+              }
+            ]
+          ],
+          "table": "_tool_kube_deployment_revisions",
+          "timeColumn": "creation_timestamp",
+          "timeColumnType": "datetime",
+          "where": [
+            {
+              "name": "$__timeFilter",
+              "params": [],
+              "type": "macro"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 23763571994,
+      "gridPos": {
+        "h": 8,
+        "w": 7,
+        "x": 5,
+        "y": 0
+      },
+      "type": "stat",
+      "title": "Kubernetes Deployment Frequency",
+      "datasource": "mysql",
+      "pluginVersion": "8.0.6",
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "options": {
+                "Between once per month and once every 6 months": {
+                  "color": "yellow",
+                  "index": 1
+                },
+                "Between once per week and once per month": {
+                  "color": "green",
+                  "index": 2
+                },
+                "Fewer than once per six months": {
+                  "color": "red",
+                  "index": 0
+                },
+                "On-demand": {
+                  "color": "purple",
+                  "index": 3
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^Deployment Frequency$/"
+        },
+        "orientation": "auto",
+        "text": {},
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "format": "table",
+          "group": [],
+          "metricColumn": "none",
+          "queryType": "randomWalk",
+          "rawQuery": true,
+          "rawSql": "\n-- Metric 1: Deployment Frequency\nwith last_few_calendar_months as(\n-- construct the last few calendar months within the selected time period in the top-right corner\n\tSELECT CAST((SYSDATE()-INTERVAL (H+T+U) DAY) AS date) day\n\tFROM ( SELECT 0 H\n\t\t\tUNION ALL SELECT 100 UNION ALL SELECT 200 UNION ALL SELECT 300\n\t\t) H CROSS JOIN ( SELECT 0 T\n\t\t\tUNION ALL SELECT  10 UNION ALL SELECT  20 UNION ALL SELECT  30\n\t\t\tUNION ALL SELECT  40 UNION ALL SELECT  50 UNION ALL SELECT  60\n\t\t\tUNION ALL SELECT  70 UNION ALL SELECT  80 UNION ALL SELECT  90\n\t\t) T CROSS JOIN ( SELECT 0 U\n\t\t\tUNION ALL SELECT   1 UNION ALL SELECT   2 UNION ALL SELECT   3\n\t\t\tUNION ALL SELECT   4 UNION ALL SELECT   5 UNION ALL SELECT   6\n\t\t\tUNION ALL SELECT   7 UNION ALL SELECT   8 UNION ALL SELECT   9\n\t\t) U\n\tWHERE\n\t\t(SYSDATE()-INTERVAL (H+T+U) DAY) > FROM_UNIXTIME(1682910000)\n),\n\n_production_deployment_days as(\n-- When deploying multiple commits in one pipeline, GitLab and BitBucket may generate more than one deployment. However, DevLake consider these deployments as ONE production deployment and use the last one's finished_date as the finished date.\n\tSELECT kdr.id, max(Date(kdr.creation_timestamp)) as day FROM `_tool_kube_deployment_revisions` kdr\ngroup by 1\n),\n\n_days_weeks_deploy as(\n-- calculate the number of deployment days every week\n\tSELECT\n\t\t\tdate(DATE_ADD(last_few_calendar_months.day, INTERVAL -WEEKDAY(last_few_calendar_months.day) DAY)) as week,\n\t\t\tMAX(if(_production_deployment_days.day is not null, 1, 0)) as weeks_deployed,\n\t\t\tCOUNT(distinct _production_deployment_days.day) as days_deployed\n\tFROM \n\t\tlast_few_calendar_months\n\t\tLEFT JOIN _production_deployment_days ON _production_deployment_days.day = last_few_calendar_months.day\n\tGROUP BY week\n\t),\n\n_monthly_deploy as(\n-- calculate the number of deployment days every month\n\tSELECT\n\t\t\tdate(DATE_ADD(last_few_calendar_months.day, INTERVAL -DAY(last_few_calendar_months.day)+1 DAY)) as month,\n\t\t\tMAX(if(_production_deployment_days.day is not null, 1, 0)) as months_deployed\n\tFROM \n\t\tlast_few_calendar_months\n\t\tLEFT JOIN _production_deployment_days ON _production_deployment_days.day = last_few_calendar_months.day\n\tGROUP BY month\n\t),\n\n_median_number_of_deployment_days_per_week_ranks as(\n\tSELECT *, percent_rank() over(order by days_deployed) as ranks\n\tFROM _days_weeks_deploy\n),\n\n_median_number_of_deployment_days_per_week as(\n\tSELECT max(days_deployed) as median_number_of_deployment_days_per_week\n\tFROM _median_number_of_deployment_days_per_week_ranks\n\tWHERE ranks <= 0.5\n),\n\n_median_number_of_deployment_days_per_month_ranks as(\n\tSELECT *, percent_rank() over(order by months_deployed) as ranks\n\tFROM _monthly_deploy\n),\n\n_median_number_of_deployment_days_per_month as(\n\tSELECT max(months_deployed) as median_number_of_deployment_days_per_month\n\tFROM _median_number_of_deployment_days_per_month_ranks\n\tWHERE ranks <= 0.5\n)\nSELECT \n\tCASE  \n\t\tWHEN median_number_of_deployment_days_per_week >= 3 THEN 'On-demand'\n\t\tWHEN median_number_of_deployment_days_per_week >= 1 THEN 'Between once per week and once per month'\n\t\tWHEN median_number_of_deployment_days_per_month >= 1 THEN 'Between once per month and once every 6 months'\n\t\tELSE 'Fewer than once per six months' END AS 'Deployment Frequency'\nFROM _median_number_of_deployment_days_per_week, _median_number_of_deployment_days_per_month;",
+          "refId": "A",
+          "select": [
+            [
+              {
+                "params": [
+                  "id"
+                ],
+                "type": "column"
+              }
+            ]
+          ],
+          "table": "_devlake_tasks",
+          "timeColumn": "created_at",
+          "timeColumnType": "timestamp",
+          "where": [
+            {
+              "name": "$__timeFilter",
+              "params": [],
+              "type": "macro"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 23763571995,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "type": "timeseries",
+      "title": "Kubernetes Deployments",
+      "datasource": "mysql",
+      "pluginVersion": "8.0.6",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "barAlignment": 0,
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "gradientMode": "hue",
+            "spanNulls": true,
+            "showPoints": "always",
+            "pointSize": 4,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "axisPlacement": "auto",
+            "axisLabel": "",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "lineStyle": {
+              "fill": "solid"
+            }
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        }
+      },
+      "targets": [
+        {
+          "format": "time_series",
+          "group": [],
+          "metricColumn": "none",
+          "queryType": "randomWalk",
+          "rawQuery": true,
+          "rawSql": "\nwith _production_deployment_days as(\n\tSELECT kdr.deployment_name as deployment_name, Date(kdr.creation_timestamp) as day FROM `_tool_kube_deployment_revisions` kdr\n\tJOIN project_mapping pm on kdr.cicd_scope_id = pm.row_id and pm.`table` = 'cicd_scopes'\n\tWHERE\n\t\tpm.project_name IN ($project)\n\tAND kdr.creation_timestamp BETWEEN $__timeFrom() AND SYSDATE()\n)\n\tselect deployment_name, _production_deployment_days.day as time, count(day) as \"Deployment Count:\" from _production_deployment_days group by _production_deployment_days.day, _production_deployment_days.deployment_name\n\torder by time asc\n;",
+          "refId": "A",
+          "select": [
+            [
+              {
+                "params": [
+                  "blueprint_id"
+                ],
+                "type": "column"
+              }
+            ]
+          ],
+          "table": "_devlake_blueprint_labels",
+          "timeColumn": "created_at",
+          "timeColumnType": "timestamp",
+          "where": [
+            {
+              "name": "$__timeFilter",
+              "params": [],
+              "type": "macro"
+            }
+          ]
+        }
+      ],
+      "timeFrom": null,
+      "timeShift": null
+    },
+    {
       "datasource": "mysql",
       "description": "",
       "fieldConfig": {
