@@ -215,4 +215,5 @@ jobs:
             -f ${{ matrix.build.context }}/Dockerfile \
             --push \
             --tag ${{ steps.get_push_tags.outputs.TAGS }} \
-            --platform linux/amd64,linux/arm64      
+            --platform linux/amd64,linux/arm64 \
+            .  
