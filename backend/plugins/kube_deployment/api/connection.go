@@ -51,54 +51,25 @@ type ReturnObject struct {
 // @Failure 500  {string} errcode.Error "Internal Error"
 // @Router /plugins/kube_deployment/test [POST]
 func TestConnection(input *plugin.ApiResourceInput) (*plugin.ApiResourceOutput, errors.Error) {
-	// TODO: Modify this
 	body := KubeDeploymentTestConnResponse{}
+
 	body.Success = true
 	body.Message = "success"
 	body.Connection = nil
+
+	credentialsInput, ok := input.Body["credentials"].(map[string]interface{})
+
+	if ok {
+		_, err := kubeDeploymentHelper.NewKubeApiClient(credentialsInput)
+		if err != nil {
+			body.Success = false
+			body.Message = "Unable to establish connection to Kubernetes cluster"
+			return &plugin.ApiResourceOutput{Body: body, Status: 400}, nil
+		}
+	}
+
 	// output
 	return &plugin.ApiResourceOutput{Body: body, Status: 200}, nil
-	// // decode
-	// var err errors.Error
-	// var connection models.KubeConn
-	// if err = helper.Decode(input.Body, &connection, vld); err != nil {
-	// 	return nil, err
-	// }
-	// fmt.Printf("connection endpoint: %v\n", connection.Endpoint)
-	// // test connection
-	// apiClient, err := helper.NewApiClient(
-	// 	context.TODO(),json.Unmarshal([]byte(connection.Credentials), &credentials
-	// 	connection.Endpoint,
-	// 	map[string]string{
-	// 		// "Authorization": fmt.Sprintf("Bearer %v", connection.Token),
-	// 	},
-	// 	3*time.Second,
-	// 	connection.Proxy,
-	// 	basicRes,
-	// )
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	// res, err := apiClient.Get("", nil, nil)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// // resBody := &models.ApiUserResponse{}
-	// // err = helper.UnmarshalResponse(res, resBody)
-	// // if err != nil {
-	// // 	return nil, err
-	// // }
-
-	// if res.StatusCode != http.StatusOK {
-	// 	return nil, errors.HttpStatus(res.StatusCode).New(fmt.Sprintf("unexpected status code: %d", res.StatusCode))
-	// }
-	// body := KubeDeploymentTestConnResponse{}
-	// body.Success = true
-	// body.Message = "success"
-	// body.Connection = &connection
-	// // output
-	// return &plugin.ApiResourceOutput{Body: body, Status: 200}, nil
 }
 
 // TODO Please modify the folowing code to adapt to your plugin
@@ -271,7 +242,16 @@ func GetNameSpaces(input *plugin.ApiResourceInput) (*plugin.ApiResourceOutput, e
 	if unmarshalErr != nil {
 		return nil, errors.BadInput.New("credentials is not a valid json")
 	}
-	KubeAPIClient := kubeDeploymentHelper.NewKubeApiClient(credentials)
+
+	KubeAPIClient, err := kubeDeploymentHelper.NewKubeApiClient(credentials)
+
+	if err != nil {
+		body := KubeDeploymentTestConnResponse{}
+
+		body.Success = false
+		body.Message = "Unable to establish connection to Kubernetes cluster"
+		return &plugin.ApiResourceOutput{Body: body, Status: 400}, nil
+	}
 
 	// Get the list of namespaces
 	namespaces, _ := KubeAPIClient.ClientSet.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
@@ -316,7 +296,15 @@ func GetDeployments(input *plugin.ApiResourceInput) (*plugin.ApiResourceOutput, 
 		return nil, errors.BadInput.New("credentials is not a valid json")
 	}
 
-	KubeAPIClient := kubeDeploymentHelper.NewKubeApiClient(credentials)
+	KubeAPIClient, err := kubeDeploymentHelper.NewKubeApiClient(credentials)
+
+	if err != nil {
+		body := KubeDeploymentTestConnResponse{}
+
+		body.Success = false
+		body.Message = "Unable to establish connection to Kubernetes cluster"
+		return &plugin.ApiResourceOutput{Body: body, Status: 400}, nil
+	}
 
 	namespace := input.Params["namespace"]
 

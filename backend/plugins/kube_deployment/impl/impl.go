@@ -111,11 +111,16 @@ func (p KubeDeployment) PrepareTaskData(taskCtx plugin.TaskContext, options map[
 	if errUnmarshall != nil {
 		return nil, errors.Default.Wrap(err, "Error unmarshalling message")
 	}
+	kubeClient, err := kubeDeploymentHelper.NewKubeApiClient(kubeAPIClientParams)
+
+	if err != nil {
+		return nil, err
+	}
 
 	taskData := &tasks.KubeDeploymentTaskData{
 		Options:       op,
 		ApiClient:     apiClient,
-		KubeAPIClient: kubeDeploymentHelper.NewKubeApiClient(kubeAPIClientParams),
+		KubeAPIClient: kubeClient,
 	}
 	var createdDateAfter time.Time
 	if op.CreatedDateAfter != "" {
