@@ -19,12 +19,11 @@ package helper
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"log"
 
 	"github.com/Azure/azure-sdk-for-go/profiles/latest/containerservice/mgmt/containerservice"
 	"github.com/Azure/go-autorest/autorest/azure/auth"
+	"github.com/apache/incubator-devlake/core/errors"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -38,41 +37,46 @@ func (k *KubeApiClient) TestConnection() error {
 	return nil
 }
 
-func NewKubeApiClient(credentials map[string]interface{}) *KubeApiClient {
+func NewKubeApiClient(credentials map[string]interface{}) (*KubeApiClient, errors.Error) {
 	println("credentials: ", credentials)
 	providerType, ok := credentials["providerType"].(string)
 
 	if providerType == "" || !ok {
-		err := errors.New("providerType is not defined")
-		panic(err)
+		err := errors.BadInput.New("providerType is not defined")
+		return nil, err
 	}
 
 	var kubeApiClient *kubernetes.Clientset
+	var err errors.Error
 
 	if providerType == "azure" {
-		kubeApiClient = createAzureClientConfig(credentials)
+		fmt.Println("Creating Azure Kube Client")
+		kubeApiClient, err = createAzureClientConfig(credentials)
+
+		if err != nil {
+			return nil, err
+		}
 	} else if providerType == "local" {
-		fmt.Println("Create Local Kube Client")
-		kubeApiClient = createClientConfig()
+		fmt.Println("Creating Local Kube Client")
+		kubeApiClient, err = createClientConfig()
+
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &KubeApiClient{
 		ClientSet: kubeApiClient,
-	}
+	}, nil
 }
 
-func createAzureClientConfig(creds map[string]interface{}) *kubernetes.Clientset {
+func createAzureClientConfig(creds map[string]interface{}) (*kubernetes.Clientset, errors.Error) {
 	clientID := creds["clientID"].(string)
 	clientSecret := creds["clientSecret"].(string)
 	tenantID := creds["tenantID"].(string)
 	subscriptionID := creds["subscriptionID"].(string)
 	clusterName := creds["clusterName"].(string)
 	resourceGroupName := creds["resourceGroupName"].(string)
-	fmt.Println("clientID: ", clientID)
-	fmt.Println("tenantID: ", tenantID)
-	fmt.Println("subscriptionID: ", subscriptionID)
-	fmt.Println("clusterName: ", clusterName)
-	fmt.Println("resourceGroupName: ", resourceGroupName)
 
 	authorizer, err := auth.NewClientCredentialsConfig(clientID, clientSecret, tenantID).Authorizer()
 	if err != nil {
@@ -85,21 +89,27 @@ func createAzureClientConfig(creds map[string]interface{}) *kubernetes.Clientset
 
 	credentials, err := client.ListClusterAdminCredentials(context.Background(), resourceGroupName, clusterName, "")
 	if err != nil {
-		panic(err.Error())
+		return nil, errors.Default.New("Unable to establish connection to Azure Kubernetes Cluster")
 	}
-	kubeConfigs := *credentials.Kubeconfigs
-	fmt.Println(string(*kubeConfigs[0].Value))
-	if len(kubeConfigs) == 0 {
-		panic("empty kube config")
-	}
-	log.Println("Azure data", "Kubeconfigs", string(*kubeConfigs[0].Value))
-	kubeconfigAZ := *kubeConfigs[0].Value
 
-	clientConfig, err := clientcmd.NewClientConfigFromBytes(kubeconfigAZ)
-	config, _ := clientConfig.ClientConfig()
+	kubeConfigs := *credentials.Kubeconfigs
+
+	if len(kubeConfigs) == 0 {
+		return nil, errors.Default.New("Empty kube config")
+	}
+
+	kubeConfigAZ := *kubeConfigs[0].Value
+
+	clientConfig, err := clientcmd.NewClientConfigFromBytes(kubeConfigAZ)
 
 	if err != nil {
-		panic(err)
+		return nil, errors.BadInput.New("Unable to establish connection to create client config")
+	}
+
+	config, err := clientConfig.ClientConfig()
+
+	if err != nil {
+		return nil, errors.BadInput.New("Unable to establish connection to create client config")
 	}
 
 	clientSet, err := kubernetes.NewForConfig(config)
@@ -107,24 +117,23 @@ func createAzureClientConfig(creds map[string]interface{}) *kubernetes.Clientset
 		panic(err)
 	}
 
-	return clientSet
+	return clientSet, nil
 }
 
-func createClientConfig() *kubernetes.Clientset {
+func createClientConfig() (*kubernetes.Clientset, errors.Error) {
+	kubeConfig := "~/.kube/config"
 
-	kubeconfig := "~/.kube/config"
-
-	// Build the client config from the kubeconfig file
-	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
+	// Build the client config from the kubeConfig file
+	config, err := clientcmd.BuildConfigFromFlags("", kubeConfig)
 	if err != nil {
-		panic(err)
+		return nil, errors.Default.New("Unable to establish connection to local Kubernetes Cluster")
 	}
 
 	// Create the clientset
 	clientSet, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		panic(err)
+		return nil, errors.Default.New("Unable to establish connection to create client config")
 	}
 
-	return clientSet
+	return clientSet, nil
 }
