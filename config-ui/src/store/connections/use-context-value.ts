@@ -30,9 +30,17 @@ export interface UseContextValueProps {
   filter?: string[];
 }
 
+/**
+ * ConnectionItemWithCredentialsType is customization of ConnectionItemType
+ * to include credentials field for Kubernetes plugin
+ */
+interface ConnectionItemWithCredentialsType extends ConnectionItemType {
+  credentials?: Record<string, any>;
+}
+
 export const useContextValue = ({ plugin, filterBeta = false, filter }: UseContextValueProps) => {
   const [loading, setLoading] = useState(false);
-  const [connections, setConnections] = useState<ConnectionItemType[]>([]);
+  const [connections, setConnections] = useState<ConnectionItemWithCredentialsType[]>([]);
 
   const allConnections = useMemo(
     () =>
@@ -83,6 +91,7 @@ export const useContextValue = ({ plugin, filterBeta = false, filter }: UseConte
         username: it.username,
         password: it.password,
         authMethod: it.authMethod,
+        ...(it.credentials && { credentials: it.credentials }),
       })),
     );
 
@@ -94,7 +103,7 @@ export const useContextValue = ({ plugin, filterBeta = false, filter }: UseConte
   }, [allConnections]);
 
   const handleTest = useCallback(
-    async (selectedConnection: ConnectionItemType) => {
+    async (selectedConnection: ConnectionItemWithCredentialsType) => {
       setConnections((connections) =>
         connections.map((cs) =>
           cs.unique === selectedConnection.unique
@@ -106,7 +115,7 @@ export const useContextValue = ({ plugin, filterBeta = false, filter }: UseConte
         ),
       );
 
-      const { plugin, endpoint, proxy, token, username, password, authMethod } = selectedConnection;
+      const { plugin, endpoint, proxy, token, username, password, authMethod, ...rest } = selectedConnection;
 
       let status = ConnectionStatusEnum.OFFLINE;
 
@@ -118,6 +127,11 @@ export const useContextValue = ({ plugin, filterBeta = false, filter }: UseConte
           username,
           password,
           authMethod,
+          /**
+           * credentials is only used for Kubernetes plugin
+           * and it will be undefined for other plugins.
+           */
+          ...(rest?.credentials && { credentials: rest.credentials }),
         });
         status = res.success ? ConnectionStatusEnum.ONLINE : ConnectionStatusEnum.OFFLINE;
       } catch {
