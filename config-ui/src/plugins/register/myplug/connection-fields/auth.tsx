@@ -58,51 +58,56 @@ type AuthType = AzureAuth['providerType'] | AWSAuth['providerType'] | OpenShiftA
 
 export const Auth = ({ initialValues, values, errors, setValues, setErrors, setValuesDefault }: Props) => {
   useEffect(() => {
-    console.log(1)
-    // all fields in the 3 auth types are required, if any fields is empty string or undefined, set error
-    if (values.credentials?.providerType === 'azure') {
-      if (
-        values.subscriptionID === '' ||
-        values.clientID === '' ||
-        values.clientSecret === '' ||
-        values.tenantID === '' ||
-        values.resourceGroupName === '' ||
-        values.clusterName === ''
-      ) {
-        setErrors({
-          error: 'Required',
-        });
-        // unset errors
-      } else {
-        setErrors({ error: '' });
-      }
-    } else if (values.credentials?.providerType === 'aws') {
-      if (
-        values.accessKeyID === '' ||
-        values.secretAccessKey === '' ||
-        values.clusterName === '' ||
-        values.awsRegion === ''
-      ) {
-        setErrors({
-          error: 'Required',
-        });
-      } else {
-        setErrors({ error: '' });
-      }
-    } else if (values.credentials?.providerType === 'openShift') {
-      if (values.authenticationURLForOpenshift === '') {
-        setErrors({
-          error: 'Required',
-        });
-      } else {
-        setErrors({ error: '' });
+    if (!values.credentials?.providerType) {
+      setErrors({
+        error: 'Required',
+      });
+    } else {
+      // all fields in the 3 auth types are required, if any fields is empty string or undefined, set error
+      if (values.credentials?.providerType === 'azure') {
+        if (
+          values?.credentials?.subscriptionID === '' ||
+          values?.credentials?.clientID === '' ||
+          values?.credentials?.clientSecret === '' ||
+          values?.credentials?.tenantID === '' ||
+          values?.credentials?.resourceGroupName === '' ||
+          values?.credentials?.clusterName === ''
+        ) {
+          setErrors({
+            error: 'Required',
+          });
+          // unset errors
+        } else {
+          setErrors({ error: '' });
+        }
+      } else if (values.credentials?.providerType === 'aws') {
+        if (
+          values?.credentials?.accessKeyID === '' ||
+          values?.credentials?.secretAccessKey === '' ||
+          values?.credentials?.clusterName === '' ||
+          values?.credentials?.awsRegion === ''
+        ) {
+          setErrors({
+            error: 'Required',
+          });
+        } else {
+          setErrors({ error: '' });
+        }
+      } else if (values?.credentials?.credentials?.providerType === 'openShift') {
+        if (values?.credentials?.authenticationURLForOpenshift === '') {
+          setErrors({
+            error: 'Required',
+          });
+        } else {
+          setErrors({ error: '' });
+        }
       }
     }
+
   }, [values]);
 
   // setInitialValues
   useEffect(() => {
-    console.log(2)
     if (initialValues.credentials?.providerType === 'azure') {
       setValuesDefault((prev) => ({
         ...prev,
@@ -121,8 +126,6 @@ export const Auth = ({ initialValues, values, errors, setValues, setErrors, setV
       }));
     }
   }, [initialValues.credentials]);
-
-  console.log(errors);
 
   const defaultValues = {
     authMethod: 'AccessToken',
