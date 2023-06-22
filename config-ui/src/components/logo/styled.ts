@@ -23,14 +23,14 @@ export const Wrapper = styled.div`
   flex-direction: column;
   align-items: center;
 
-  img:first-child {
-    width: 48px;
-    height: 48px;
-  }
-
-  img:last-child {
-    margin-top: 10px;
-    width: 100px;
-    height: 13px;
-  }
+  //img:first-child {
+  //  width: 100px;
+  //  height: 100px;
+  //}
+  //
+  //img:last-child {
+  //  margin-top: 10px;
+  //  width: 100px;
+  //  height: 13px;
+  //}
 `;
