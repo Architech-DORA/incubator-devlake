@@ -16,7 +16,7 @@
  *
  */
 
-import { Logo } from '@/components';
+import {Logo, LogoLight} from '@/components';
 
 import * as S from './styled';
 
@@ -27,7 +27,7 @@ interface Props {
 export const ErrorLayout = ({ children }: Props) => {
   return (
     <S.Wrapper>
-      <Logo />
+      <LogoLight />
       <S.Inner>{children}</S.Inner>
     </S.Wrapper>
   );

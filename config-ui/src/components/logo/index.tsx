@@ -19,7 +19,7 @@
 import React from 'react';
 
 import LogoImg from '@/images/devlake-logo.svg';
-import LogoTextImg from '@/images/devlake-textmark.svg';
+import LogoImgLight from '@/images/devlake-logo-light-bg.svg';
 
 import * as S from './styled';
 
@@ -27,7 +27,16 @@ export const Logo = () => {
   return (
     <S.Wrapper>
       <img src={LogoImg} alt="" />
-      <img src={LogoTextImg} alt="" />
+      {/*<img src={LogoTextImg} alt="" />*/}
     </S.Wrapper>
   );
 };
+
+export const LogoLight = () => {
+  return (
+    <S.Wrapper>
+      <img src={LogoImgLight} alt="" />
+      {/*<img src={LogoTextImg} alt="" />*/}
+    </S.Wrapper>
+  );
+}

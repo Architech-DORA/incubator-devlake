@@ -1,23 +1,9 @@
-<!--
-Licensed to the Apache Software Foundation (ASF) under one or more
-contributor license agreements.  See the NOTICE file distributed with
-this work for additional information regarding copyright ownership.
-The ASF licenses this file to You under the Apache License, Version 2.0
-(the "License"); you may not use this file except in compliance with
-the License.  You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
--->
-<svg width="128px" height="128px" viewBox="0 0 128 128" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
- <title>a-in-a-circle</title>
- <g id="Page-1" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
-  <circle id="Oval" stroke="#FFFFFF" stroke-width="8" fill="#131415" cx="64" cy="64" r="60"></circle>
-  <path d="M77.2,84.8 L50.8,84.8 L47.3,96 L29.5,96 L53.6,25 L74.3,25 L98.4,96 L80.8,96 L77.2,84.8 Z M72.3,69.6 L64,43.5 L55.7,69.6 L72.3,69.6 Z" id="Shape" fill="#FFFFFF" fill-rule="nonzero"></path>
- </g>
+<svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect width="48" height="48" rx="24" fill="white"/>
+    <path d="M24 47C36.7025 47 47 36.7025 47 24C47 11.2975 36.7025 1 24 1C11.2975 1 1 11.2975 1 24C1 36.7025 11.2975 47 24 47Z" fill="white"/>
+    <path d="M19.82 37.89H19.67L13.92 21.54L9.81 9.73C10.0155 9.48952 10.2395 9.2655 10.48 9.06C11.1652 8.47575 11.961 8.0356 12.8201 7.76585C13.6792 7.4961 14.5838 7.40228 15.48 7.49L21.3 24.08L25.41 35.73C24.7056 36.4937 23.8353 37.0856 22.8662 37.4601C21.8971 37.8345 20.8549 37.9816 19.82 37.89Z" fill="#4AC1BF"/>
+    <path d="M8.83997 38C7.97395 37.9043 7.18091 37.47 6.63388 36.7918C6.08684 36.1136 5.83021 35.2467 5.91997 34.38L8.23997 13.39C8.39378 11.941 9.01103 10.5802 9.99997 9.50999L10.6 8.90999C11.2879 8.36055 12.0774 7.9523 12.9234 7.70862C13.7694 7.46495 14.6552 7.39065 15.53 7.48999L12.5 35.05C12.3915 35.9224 11.9641 36.7239 11.3 37.3C10.9589 37.5775 10.5649 37.7827 10.142 37.903C9.71905 38.0233 9.27606 38.0563 8.83997 38Z" fill="black"/>
+    <path d="M34.16 37.82L27.81 26.09L23.48 18.09L23.85 17.72C24.5127 17.1226 25.2953 16.6735 26.1455 16.4028C26.9957 16.132 27.8938 16.0459 28.78 16.15L28.93 16.3L35.2 28L39.54 36L39.16 36.3C38.4821 36.8936 37.6857 37.3361 36.8236 37.5982C35.9615 37.8603 35.0535 37.9359 34.16 37.82Z" fill="#4AC1BF"/>
+    <path d="M34.08 37.82L35.43 25.94C35.4791 25.5001 35.6169 25.0748 35.8352 24.6897C36.0535 24.3047 36.3477 23.968 36.7 23.7C37.025 23.419 37.4066 23.211 37.8189 23.0903C38.2313 22.9695 38.6647 22.9387 39.09 23C39.9582 23.0738 40.7617 23.4891 41.3241 24.1546C41.8866 24.8201 42.162 25.6816 42.09 26.55C42.0851 26.5865 42.0851 26.6235 42.09 26.66L41.49 31.96C41.292 33.5687 40.5217 35.0524 39.32 36.14C39.25 36.22 39.1 36.29 39.02 36.44C38.3284 36.9846 37.5358 37.387 36.688 37.6238C35.8401 37.8607 34.9538 37.9273 34.08 37.82Z" fill="black"/>
+    <path d="M19.67 37.82L21.46 21.76C21.6723 20.2248 22.411 18.811 23.55 17.76C23.6406 17.6212 23.774 17.5159 23.93 17.46C25.2803 16.3874 26.9931 15.8786 28.71 16.04H28.78L27.06 32.22C26.871 33.6498 26.2175 34.9779 25.2 36C24.4859 36.7163 23.6131 37.2543 22.6524 37.5705C21.6916 37.8867 20.6699 37.9722 19.67 37.82Z" fill="black"/>
 </svg>
