@@ -26,7 +26,6 @@ import { GiteeConfig } from './register/gitee';
 import { GitExtractorConfig } from './register/gitextractor';
 import { GitHubConfig } from './register/github';
 import { GitHubGraphqlConfig } from './register/github_graphql';
-import { GitLabConfig } from './register/gitlab';
 import { JenkinsConfig } from './register/jenkins';
 import { JiraConfig } from './register/jira';
 import { KubeDeploymentConfig } from './register/myplug';
@@ -48,7 +47,7 @@ export const PluginConfig: PluginConfigType[] = [
   GitExtractorConfig,
   GitHubConfig,
   GitHubGraphqlConfig,
-  GitLabConfig,
+  // GitLabConfig,
   JenkinsConfig,
   JiraConfig,
   OrgConfig,

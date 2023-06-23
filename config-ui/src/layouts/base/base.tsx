@@ -103,10 +103,10 @@ export const BaseLayout = ({ children }: Props) => {
             );
           })}
         </Menu>
-        <div className="copyright">
-          <div>Apache 2.0 License</div>
-          <div className="version">{data.version}</div>
-        </div>
+        {/*<div className="copyright">*/}
+        {/*  <div>Apache 2.0 License</div>*/}
+        {/*  <div className="version">{data.version}</div>*/}
+        {/*</div>*/}
       </S.Sider>
       <S.Main>
         <S.Header>
