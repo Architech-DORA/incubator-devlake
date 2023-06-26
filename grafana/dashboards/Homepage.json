@@ -28,7 +28,7 @@
       },
       "id": 32,
       "options": {
-        "content": "# Welcome to Apache DevLake\n\n  - DevLake provides following dashboards, grouped by use cases and data sources.\n  - The data displayed in these dashboards are queried from DevLake's domain layer data, see [schema](https://devlake.apache.org/docs/DataModels/DevLakeDomainLayerSchema).\n  - You can also make your own dashboard based on the [domain layer schema](https://devlake.apache.org/docs/DataModels/DevLakeDomainLayerSchema), the SQL exmaples of [engineering metrics](https://devlake.apache.org/docs/Metrics), and [Grafana manuals](https://devlake.apache.org/docs/Configuration/Dashboards/GrafanaUserGuide).\n  - Feel free to [fire an issue](https://github.com/apache/incubator-devlake/issues/new/choose) if you have any question.",
+        "content": "# Welcome to MetricSense\n\n  - MetricSense provides following dashboards, grouped by use cases and data sources.\n  - The data displayed in these dashboards are queried from MetricSense's domain layer data.\n  - You can also make your own dashboard based on the [domain layer schema](https://www.architech.ca/schedule-a-call-with-architech), the SQL exmaples of [engineering metrics](https://www.architech.ca/schedule-a-call-with-architech), and [Grafana manuals](https://www.architech.ca/schedule-a-call-with-architech).\n  - Feel free to [fire an issue](https://www.architech.ca/schedule-a-call-with-architech) if you have any question.",
         "mode": "markdown"
       },
       "pluginVersion": "8.0.6",
