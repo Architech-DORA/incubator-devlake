@@ -16,13 +16,7 @@ jobs:
         with:
           ref: ${{ github.event.inputs.branch }}
       - name: rename env
-        run: mv env.example .env
-      - name: Login to Azure Container Registry
-        uses: azure/docker-login@v1
-        with:
-          login-server: glqaacrdnclcacntest.azurecr.io
-          username: ${{ secrets.ACR_USERNAME }}
-          password: ${{ secrets.ACR_PASSWORD }}        
+        run: mv env.example .env       
       - name: Deploy Application
         run: |
           sudo docker-compose up -d
