@@ -97,7 +97,7 @@
           "hide": false,
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "SELECT\n  deployment_name AS \"Kubernetes Deployment\", count(deployment_name) AS \"Total Deployment Revision Count\"\nFROM _tool_kube_deployment_revisions\nWHERE\n  $__timeFilter(creation_timestamp)\nGROUP BY deployment_name;",
+          "rawSql": "SELECT\n  deployment_name AS \"Kubernetes Deployment\", count(deployment_name) AS \"Total Deployment Revision Count\"\nFROM \n  _tool_kube_deployment_revisions kdr\nJOIN \n  project_mapping pm on kdr.cicd_scope_id = pm.row_id and pm.`table` = 'cicd_scopes'\nWHERE\n  pm.project_name IN ($project)\nAND\n  $__timeFilter(creation_timestamp)\nGROUP BY deployment_name;",
           "refId": "A",
           "select": [
             [
