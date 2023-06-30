@@ -15,8 +15,6 @@
 
 from typing import Iterable
 
-import iso8601 as iso8601
-
 from azuredevops.api import AzureDevOpsAPI
 from azuredevops.models import GitRepository
 from azuredevops.models import Build
@@ -31,11 +29,14 @@ class Builds(Stream):
     def collect(self, state, context) -> Iterable[tuple[object, dict]]:
         repo: GitRepository = context.scope
         api = AzureDevOpsAPI(context.connection)
-        response = api.builds(repo.org_id, repo.project_id, repo.id, 'tfsgit')
+        response = api.builds(repo.org_id, repo.project_id, repo.id, repo.provider or 'tfsgit')
         for raw_build in response:
             yield raw_build, state
 
     def convert(self, b: Build, ctx: Context):
+        if not b.start_time:
+            return
+
         result = None
         if b.result == Build.BuildResult.Canceled:
             result = devops.CICDResult.ABORT
@@ -59,11 +60,16 @@ class Builds(Stream):
             status = devops.CICDStatus.IN_PROGRESS
 
         type = devops.CICDType.BUILD
-        if ctx.transformation_rule and ctx.transformation_rule.deployment_pattern.search(b.name):
+        if ctx.scope_config.deployment_pattern and ctx.scope_config.deployment_pattern.search(b.name):
             type = devops.CICDType.DEPLOYMENT
         environment = devops.CICDEnvironment.TESTING
-        if ctx.transformation_rule and ctx.transformation_rule.production_pattern.search(b.name):
+        if ctx.scope_config.production_pattern and ctx.scope_config.production_pattern.search(b.name):
             environment = devops.CICDEnvironment.PRODUCTION
+
+        if b.finish_time:
+            duration_sec = abs(b.finish_time.second - b.start_time.second)
+        else:
+            duration_sec = 0
 
         yield devops.CICDPipeline(
             name=b.name,
@@ -71,7 +77,7 @@ class Builds(Stream):
             created_date=b.start_time,
             finished_date=b.finish_time,
             result=result,
-            duration_sec=abs(b.finish_time.second-b.start_time.second),
+            duration_sec=duration_sec,
             environment=environment,
             type=type,
             cicd_scope_id=ctx.scope.domain_id(),

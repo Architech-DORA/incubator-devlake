@@ -18,6 +18,10 @@ limitations under the License.
 package api
 
 import (
+	"fmt"
+	"github.com/apache/incubator-devlake/helpers/pluginhelper/services"
+	"strconv"
+
 	"github.com/apache/incubator-devlake/core/context"
 	"github.com/apache/incubator-devlake/core/dal"
 	"github.com/apache/incubator-devlake/core/errors"
@@ -25,30 +29,34 @@ import (
 	"github.com/apache/incubator-devlake/core/models"
 	plugin "github.com/apache/incubator-devlake/core/plugin"
 	"github.com/go-playground/validator/v10"
-	"strconv"
 )
 
 // ConnectionApiHelper is used to write the CURD of connection
 type ConnectionApiHelper struct {
-	encKey    string
-	log       log.Logger
-	db        dal.Dal
-	validator *validator.Validate
+	encryptionSecret string
+	log              log.Logger
+	db               dal.Dal
+	validator        *validator.Validate
+	bpManager        *services.BlueprintManager
+	pluginName       string
 }
 
 // NewConnectionHelper creates a ConnectionHelper for connection management
 func NewConnectionHelper(
 	basicRes context.BasicRes,
 	vld *validator.Validate,
+	pluginName string,
 ) *ConnectionApiHelper {
 	if vld == nil {
 		vld = validator.New()
 	}
 	return &ConnectionApiHelper{
-		encKey:    basicRes.GetConfig(plugin.EncodeKeyEnvStr),
-		log:       basicRes.GetLogger(),
-		db:        basicRes.GetDal(),
-		validator: vld,
+		encryptionSecret: basicRes.GetConfig(plugin.EncodeKeyEnvStr),
+		log:              basicRes.GetLogger(),
+		db:               basicRes.GetDal(),
+		validator:        vld,
+		bpManager:        services.NewBlueprintManager(basicRes.GetDal()),
+		pluginName:       pluginName,
 	}
 }
 
@@ -100,8 +108,37 @@ func (c *ConnectionApiHelper) List(connections interface{}) errors.Error {
 }
 
 // Delete connection
-func (c *ConnectionApiHelper) Delete(connection interface{}) errors.Error {
-	return CallDB(c.db.Delete, connection)
+func (c *ConnectionApiHelper) Delete(connection interface{}) (*services.BlueprintProjectPairs, errors.Error) {
+	connectionId := reflectField(connection, "ID").Uint()
+	referencingBps, err := c.bpManager.GetBlueprintsByConnection(c.pluginName, connectionId)
+	if err != nil {
+		return nil, err
+	}
+	if len(referencingBps) > 0 {
+		return services.NewBlueprintProjectPairs(referencingBps), errors.Conflict.New("Found one or more blueprint/project references to this connection")
+	}
+	src, err := c.getPluginSource()
+	if err != nil {
+		return nil, err
+	}
+	if scopeModel := src.Scope(); scopeModel != nil {
+		// ensure the connection has no scopes using it
+		count, err := c.db.Count(dal.From(scopeModel.TableName()), dal.Where("connection_id = ?", connectionId))
+		if err != nil {
+			return nil, errors.Default.Wrap(err, fmt.Sprintf("error counting scopes for plugin %s using connection %d", c.pluginName, connectionId))
+		}
+		if count > 0 {
+			return nil, errors.Conflict.New(fmt.Sprintf("Found %d scopes using connection %d", count, connectionId))
+		}
+	}
+	if scopeConfigModel := src.ScopeConfig(); scopeConfigModel != nil {
+		// remove scope-configs that use this connection
+		err = CallDB(c.db.Delete, scopeConfigModel, dal.Where("connection_id = ?", connectionId))
+		if err != nil {
+			return nil, errors.Default.Wrap(err, fmt.Sprintf("error deleting scope-configs for plugin %s using connection %d", c.pluginName, connectionId))
+		}
+	}
+	return nil, CallDB(c.db.Delete, connection)
 }
 
 func (c *ConnectionApiHelper) merge(connection interface{}, body map[string]interface{}) errors.Error {
@@ -125,4 +162,13 @@ func (c *ConnectionApiHelper) save(connection interface{}, method func(entity in
 		return err
 	}
 	return nil
+}
+
+func (c *ConnectionApiHelper) getPluginSource() (plugin.PluginSource, errors.Error) {
+	pluginMeta, _ := plugin.GetPlugin(c.pluginName)
+	pluginSrc, ok := pluginMeta.(plugin.PluginSource)
+	if !ok {
+		return nil, errors.Default.New("plugin doesn't implement PluginSource")
+	}
+	return pluginSrc, nil
 }

@@ -28,7 +28,7 @@ import (
 type ZentaoProject struct {
 	common.NoPKModel `json:"-"`
 	ConnectionId     uint64              `json:"connectionid" mapstructure:"connectionid" gorm:"primaryKey;type:BIGINT  NOT NULL"`
-	Id               int64               `json:"id" mapstructure:"id" gorm:"primaryKey;type:BIGINT  NOT NULL"`
+	Id               int64               `json:"id" mapstructure:"id" gorm:"primaryKey;type:BIGINT  NOT NULL;autoIncrement:false"`
 	Project          int64               `json:"project" mapstructure:"project"`
 	Model            string              `json:"model" mapstructure:"model"`
 	Type             string              `json:"type" mapstructure:"type"`
@@ -64,9 +64,11 @@ type ZentaoProject struct {
 	OpenedVersion string              `json:"openedVersion" mapstructure:"openedVersion"`
 	//LastEditedBy   string              `json:"lastEditedBy" mapstructure:"lastEditedBy"`
 	LastEditedDate *helper.Iso8601Time `json:"lastEditedDate" mapstructure:"lastEditedDate"`
-	ClosedBy       string              `json:"closedBy" mapstructure:"closedBy"`
+	ClosedBy       string
+	ClosedByRes    interface{}         `json:"closedBy" mapstructure:"closedBy" gorm:"-"`
 	ClosedDate     *helper.Iso8601Time `json:"closedDate" mapstructure:"closedDate"`
-	CanceledBy     string              `json:"canceledBy" mapstructure:"canceledBy"`
+	CanceledBy     string
+	CanceledByRes  interface{}         `json:"canceledBy" mapstructure:"canceledBy" gorm:"-"`
 	CanceledDate   *helper.Iso8601Time `json:"canceledDate" mapstructure:"canceledDate"`
 	SuspendedDate  *helper.Iso8601Time `json:"suspendedDate" mapstructure:"suspendedDate"`
 	PO             string              `json:"po" mapstructure:"po"`
@@ -91,6 +93,7 @@ type ZentaoProject struct {
 	TotalLeft     float64 `json:"totalLeft" mapstructure:"totalLeft"`
 	Progress      float64 `json:"progress" mapstructure:"progress"`
 	TotalReal     int     `json:"totalReal" mapstructure:"totalReal"`
+	ScopeConfigId uint64  `json:"scopeConfigId,omitempty" mapstructure:"scopeConfigId"`
 }
 type PM struct {
 	PmId       int64  `json:"id" mapstructure:"id"`
@@ -112,16 +115,49 @@ type Hours struct {
 	HoursTotalReal     float64 `json:"totalReal" mapstructure:"totalReal"`
 }
 
+func (p *ZentaoProject) ConvertFix() {
+	switch cb := p.ClosedByRes.(type) {
+	case string:
+		p.ClosedBy = cb
+	default:
+		if cb == nil {
+			p.ClosedBy = ""
+		} else {
+			p.ClosedBy = fmt.Sprintf("%v", cb)
+		}
+	}
+	p.ClosedByRes = p.ClosedBy
+
+	switch cb := p.CanceledByRes.(type) {
+	case string:
+		p.CanceledBy = cb
+	default:
+		if cb == nil {
+			p.CanceledBy = ""
+		} else {
+			p.CanceledBy = fmt.Sprintf("%v", cb)
+		}
+	}
+	p.CanceledByRes = p.CanceledBy
+}
+
 func (ZentaoProject) TableName() string {
 	return "_tool_zentao_projects"
 }
 
 func (p ZentaoProject) ScopeId() string {
-	return fmt.Sprintf(`project/%d`, p.Id)
+	return fmt.Sprintf(`projects/%d`, p.Id)
 }
 
 func (p ZentaoProject) ScopeName() string {
 	return p.Name
+}
+
+func (p ZentaoProject) ScopeParams() interface{} {
+	return &ZentaoApiParams{
+		ConnectionId: p.ConnectionId,
+		ZentaoId:     fmt.Sprintf("projects/%d", p.Id),
+	}
 }
 
 func (p ZentaoProject) ConvertApiScope() plugin.ToolLayerScope {
@@ -130,4 +166,9 @@ func (p ZentaoProject) ConvertApiScope() plugin.ToolLayerScope {
 		p.Type = "project"
 	}
 	return p
+}
+
+type ZentaoApiParams struct {
+	ConnectionId uint64
+	ZentaoId     string
 }

@@ -33,7 +33,21 @@ export type PluginConfigType = {
     initialValues?: Record<string, any>;
     fields: any[];
   };
-  entities: string[];
-  transformation: any;
-  transformationType?: 'none' | 'for-connection' | 'for-scope';
+  dataScope: {
+    millerColumns?: {
+      title: string;
+      subTitle: string;
+      firstColumnTitle?: string;
+      columnCount?: number;
+    };
+    search?: {
+      title?: string;
+      subTitle?: string;
+    };
+    render?: (props: any) => React.ReactNode;
+  };
+  scopeConfig?: {
+    entities: string[];
+    transformation: any;
+  };
 };

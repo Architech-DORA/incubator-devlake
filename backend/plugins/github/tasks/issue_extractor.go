@@ -51,7 +51,8 @@ type IssuesResponse struct {
 	Labels []struct {
 		Name string `json:"name"`
 	} `json:"labels"`
-	Assignee  *GithubAccountResponse
+	Assignee  *GithubAccountResponse  `json:"assignee"`
+	Assignees []GithubAccountResponse `json:"assignees"`
 	User      *GithubAccountResponse
 	Milestone *struct {
 		Id int
@@ -73,7 +74,7 @@ type IssueRegexes struct {
 func ExtractApiIssues(taskCtx plugin.SubTaskContext) errors.Error {
 	data := taskCtx.GetData().(*GithubTaskData)
 
-	config := data.Options.GithubTransformationRule
+	config := data.Options.ScopeConfig
 	issueRegexes, err := NewIssueRegexes(config)
 	if err != nil {
 		return nil
@@ -128,6 +129,16 @@ func ExtractApiIssues(taskCtx plugin.SubTaskContext) errors.Error {
 					return nil, err
 				}
 				results = append(results, relatedUser)
+			}
+			for _, assignee := range body.Assignees {
+				issueAssignee := &models.GithubIssueAssignee{
+					ConnectionId: githubIssue.ConnectionId,
+					IssueId:      githubIssue.GithubId,
+					RepoId:       githubIssue.RepoId,
+					AssigneeId:   assignee.Id,
+					AssigneeName: assignee.Login,
+				}
+				results = append(results, issueAssignee)
 			}
 			if body.User != nil {
 				githubIssue.AuthorId = body.User.Id
@@ -222,7 +233,7 @@ func convertGithubLabels(issueRegexes *IssueRegexes, issue *IssuesResponse, gith
 	return results, nil
 }
 
-func NewIssueRegexes(config *models.GithubTransformationRule) (*IssueRegexes, errors.Error) {
+func NewIssueRegexes(config *models.GithubScopeConfig) (*IssueRegexes, errors.Error) {
 	var issueRegexes IssueRegexes
 	if config == nil {
 		return &issueRegexes, nil

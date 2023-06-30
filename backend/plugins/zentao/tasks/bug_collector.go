@@ -33,6 +33,10 @@ const RAW_BUG_TABLE = "zentao_api_bugs"
 var _ plugin.SubTaskEntryPoint = CollectBug
 
 func CollectBug(taskCtx plugin.SubTaskContext) errors.Error {
+	return RangeProductOneByOne(taskCtx, CollectBugForOneProduct)
+}
+
+func CollectBugForOneProduct(taskCtx plugin.SubTaskContext) errors.Error {
 	data := taskCtx.GetData().(*ZentaoTaskData)
 
 	// this collect only work for product
@@ -43,16 +47,16 @@ func CollectBug(taskCtx plugin.SubTaskContext) errors.Error {
 	collector, err := api.NewApiCollector(api.ApiCollectorArgs{
 		RawDataSubTaskArgs: api.RawDataSubTaskArgs{
 			Ctx: taskCtx,
-			Params: ZentaoApiParams{
-				ConnectionId: data.Options.ConnectionId,
-				ProductId:    data.Options.ProductId,
-				ProjectId:    data.Options.ProjectId,
-			},
+			Params: ScopeParams(
+				data.Options.ConnectionId,
+				data.Options.ProjectId,
+				data.Options.ProductId,
+			),
 			Table: RAW_BUG_TABLE,
 		},
 		ApiClient:   data.ApiClient,
 		PageSize:    100,
-		UrlTemplate: "/products/{{ .Params.ProductId }}/bugs",
+		UrlTemplate: "/{{ .Params.ZentaoId }}/bugs",
 		Query: func(reqData *api.RequestData) (url.Values, errors.Error) {
 			query := url.Values{}
 			query.Set("page", fmt.Sprintf("%v", reqData.Pager.Page))
@@ -79,7 +83,7 @@ func CollectBug(taskCtx plugin.SubTaskContext) errors.Error {
 }
 
 var CollectBugMeta = plugin.SubTaskMeta{
-	Name:             "CollectBug",
+	Name:             "collectBug",
 	EntryPoint:       CollectBug,
 	EnabledByDefault: true,
 	Description:      "Collect Bug data from Zentao api",

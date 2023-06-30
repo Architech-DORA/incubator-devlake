@@ -18,11 +18,9 @@ limitations under the License.
 package api
 
 import (
-	"fmt"
 	"strconv"
 	"time"
 
-	"github.com/apache/incubator-devlake/core/dal"
 	"github.com/apache/incubator-devlake/core/errors"
 	"github.com/apache/incubator-devlake/core/models/domainlayer"
 	"github.com/apache/incubator-devlake/core/models/domainlayer/didgen"
@@ -71,7 +69,12 @@ func makeDataSourcePipelinePlanV200(
 			options["timeAfter"] = syncPolicy.TimeAfter.Format(time.RFC3339)
 		}
 
-		subtasks, err := helper.MakePipelinePlanSubtasks(subtaskMetas, bpScope.Entities)
+		_, scopeConfig, err := scopeHelper.DbHelper().GetScopeAndConfig(connectionId, bpScope.Id)
+		if err != nil {
+			return nil, err
+		}
+
+		subtasks, err := helper.MakePipelinePlanSubtasks(subtaskMetas, scopeConfig.Entities)
 		if err != nil {
 			return nil, err
 		}
@@ -86,24 +89,27 @@ func makeDataSourcePipelinePlanV200(
 	return plan, nil
 }
 
-func makeScopesV200(bpScopes []*plugin.BlueprintScopeV200, connectionId uint64) ([]plugin.Scope, errors.Error) {
+func makeScopesV200(
+	bpScopes []*plugin.BlueprintScopeV200,
+	connectionId uint64) ([]plugin.Scope, errors.Error,
+) {
 	scopes := make([]plugin.Scope, 0)
 	for _, bpScope := range bpScopes {
-		tapdWorkspace := &models.TapdWorkspace{}
-		// get repo from db
-		err := basicRes.GetDal().First(tapdWorkspace,
-			dal.Where(`connection_id = ? and id = ?`,
-				connectionId, bpScope.Id))
+		// get workspace and scope config from db
+
+		tapdWorkspace, scopeConfig, err := scopeHelper.DbHelper().GetScopeAndConfig(connectionId, bpScope.Id)
 		if err != nil {
-			return nil, errors.Default.Wrap(err, fmt.Sprintf("fail to find wrokspace %s", bpScope.Id))
+			return nil, err
 		}
+
 		// add wrokspace to scopes
-		if utils.StringsContains(bpScope.Entities, plugin.DOMAIN_TYPE_TICKET) {
+		if utils.StringsContains(scopeConfig.Entities, plugin.DOMAIN_TYPE_TICKET) {
 			domainBoard := &ticket.Board{
 				DomainEntity: domainlayer.DomainEntity{
 					Id: didgen.NewDomainIdGenerator(&models.TapdWorkspace{}).Generate(tapdWorkspace.ConnectionId, tapdWorkspace.Id),
 				},
 				Name: tapdWorkspace.Name,
+				Type: "scrum",
 			}
 			scopes = append(scopes, domainBoard)
 		}

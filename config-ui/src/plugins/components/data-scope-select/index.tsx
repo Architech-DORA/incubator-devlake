@@ -17,11 +17,11 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Button, InputGroup, Intent } from '@blueprintjs/core';
+import { Button, Intent } from '@blueprintjs/core';
 
-import { FormItem, ExternalLink, Table, Buttons } from '@/components';
+import { PageLoading, FormItem, ExternalLink, Message, Buttons, Table } from '@/components';
 import { useRefreshData } from '@/hooks';
-import { getPluginId } from '@/plugins';
+import { getPluginScopeId } from '@/plugins';
 
 import * as API from './api';
 import * as S from './styled';
@@ -29,68 +29,117 @@ import * as S from './styled';
 interface Props {
   plugin: string;
   connectionId: ID;
+  showWarning?: boolean;
   initialScope?: any[];
   onCancel?: () => void;
   onSubmit?: (scope: any) => void;
 }
 
-export const DataScopeSelect = ({ plugin, connectionId, initialScope, onSubmit, onCancel }: Props) => {
+export const DataScopeSelect = ({
+  plugin,
+  connectionId,
+  showWarning = false,
+  initialScope,
+  onSubmit,
+  onCancel,
+}: Props) => {
+  const [version, setVersion] = useState(1);
   const [scopeIds, setScopeIds] = useState<ID[]>([]);
 
-  const { ready, data } = useRefreshData(() => API.getDataScope(plugin, connectionId));
+  const { ready, data } = useRefreshData(() => API.getDataScope(plugin, connectionId), [version]);
 
   useEffect(() => {
-    setScopeIds((initialScope ?? data ?? []).map((sc: any) => sc[getPluginId(plugin)]) ?? []);
+    setScopeIds((initialScope ?? data ?? []).map((sc: any) => getPluginScopeId(plugin, sc)) ?? []);
   }, [data]);
 
+  const handleRefresh = () => setVersion((v) => v + 1);
+
   const handleSubmit = () => {
-    const scope = data.filter((it: any) => scopeIds.includes(it[getPluginId(plugin)]));
+    const scope = data.filter((it: any) => scopeIds.includes(getPluginScopeId(plugin, it)));
     onSubmit?.(scope);
   };
+
+  if (!ready || !data) {
+    return <PageLoading />;
+  }
 
   return (
     <FormItem
       label="Select Data Scope"
       subLabel={
-        <>
-          {' '}
-          Select the data scope in this Connection that you wish to associate with this Project. If you wish to add more
-          Data Scope to this Connection, please{' '}
-          <ExternalLink link={`/connections/${plugin}/${connectionId}`}>go to the Connection page</ExternalLink>.
-        </>
+        data.length ? (
+          <>
+            Select the data scope in this Connection that you wish to associate with this Project. If you wish to add
+            more Data Scope to this Connection, please{' '}
+            <ExternalLink link={`/connections/${plugin}/${connectionId}`}>go to the Connection page</ExternalLink>.
+          </>
+        ) : (
+          <>
+            There is no Data Scope in this connection yet, please{' '}
+            <ExternalLink link={`/connections/${plugin}/${connectionId}`}>
+              add Data Scope and manage their Scope Configs
+            </ExternalLink>{' '}
+            first.
+          </>
+        )
       }
       required
     >
-      <S.Wrapper>
-        <div className="action">
-          <Button intent={Intent.PRIMARY} icon="refresh" text="Refresh Data Scope" />
-        </div>
-        <div className="search">
-          <InputGroup placeholder="Search for Data Scopes" />
-        </div>
-        <Table
-          noShadow
-          loading={!ready}
-          columns={[
-            {
-              title: 'Data Scope',
-              dataIndex: 'name',
-              key: 'name',
-            },
-          ]}
-          dataSource={data}
-          rowSelection={{
-            rowKey: getPluginId(plugin),
-            type: 'checkbox',
-            selectedRowKeys: scopeIds as string[],
-            onChange: (selectedRowKeys) => setScopeIds(selectedRowKeys),
-          }}
-        />
-        <Buttons>
-          <Button outlined intent={Intent.PRIMARY} text="Cancel" onClick={onCancel} />
-          <Button intent={Intent.PRIMARY} text="Save" onClick={handleSubmit} />
-        </Buttons>
-      </S.Wrapper>
+      {data.length ? (
+        <S.Wrapper>
+          {showWarning ? (
+            <Message
+              style={{ marginBottom: 24 }}
+              content={
+                <>
+                  Unchecking Data Scope below will only remove it from the current Project and will not delete the
+                  historical data. If you would like to delete the data of Data Scope, please{' '}
+                  <ExternalLink link={`/connections/${plugin}/${connectionId}`}>go to the Connection page</ExternalLink>
+                  .
+                </>
+              }
+            />
+          ) : (
+            <Buttons>
+              <Button intent={Intent.PRIMARY} icon="refresh" text="Refresh Data Scope" onClick={handleRefresh} />
+            </Buttons>
+          )}
+          <Table
+            noShadow
+            loading={!ready}
+            columns={[
+              {
+                title: 'Data Scope',
+                dataIndex: 'name',
+                key: 'name',
+              },
+              {
+                title: 'Scope Config',
+                dataIndex: 'scopeConfig',
+                key: 'scopeConfig',
+                render: (_, row) => (row.scopeConfigId ? row.scopeConfig?.name : 'N/A'),
+              },
+            ]}
+            dataSource={data}
+            rowSelection={{
+              getRowKey: (data) => getPluginScopeId(plugin, data),
+              type: 'checkbox',
+              selectedRowKeys: scopeIds as string[],
+              onChange: (selectedRowKeys) => setScopeIds(selectedRowKeys),
+            }}
+          />
+          <Buttons position="bottom" align="right">
+            <Button outlined intent={Intent.PRIMARY} text="Cancel" onClick={onCancel} />
+            <Button disabled={!scopeIds.length} intent={Intent.PRIMARY} text="Save" onClick={handleSubmit} />
+          </Buttons>
+        </S.Wrapper>
+      ) : (
+        <S.Wrapper>
+          <ExternalLink link={`/connections/${plugin}/${connectionId}`}>
+            <Button intent={Intent.PRIMARY} icon="add" text="Add Data Scope" />
+          </ExternalLink>
+        </S.Wrapper>
+      )}
     </FormItem>
   );
 };

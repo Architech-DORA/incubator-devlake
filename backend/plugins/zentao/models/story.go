@@ -82,7 +82,7 @@ type ZentaoStoryRes struct {
 type ZentaoStory struct {
 	common.NoPKModel
 	ConnectionId uint64  `gorm:"primaryKey;type:BIGINT  NOT NULL"`
-	ID           int64   `json:"id" gorm:"primaryKey;type:BIGINT  NOT NULL" `
+	ID           int64   `json:"id" gorm:"primaryKey;type:BIGINT  NOT NULL;autoIncrement:false" `
 	Product      int64   `json:"product"`
 	Branch       int     `json:"branch"`
 	Version      int     `json:"version"`
@@ -137,6 +137,9 @@ type ZentaoStory struct {
 	Deleted          bool                `json:"deleted"`
 	PriOrder         string              `json:"priOrder"`
 	PlanTitle        string              `json:"planTitle"`
+	Url              string              `json:"url"`
+	StdStatus        string              `json:"stdStatus" gorm:"type:varchar(20)"`
+	StdType          string              `json:"stdType" gorm:"type:varchar(20)"`
 }
 
 func (ZentaoStory) TableName() string {

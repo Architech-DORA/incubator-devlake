@@ -34,7 +34,7 @@ class MyPluginConnection(dl.Connection):
     pass
 
 
-class MyPluginTransformationRule(dl.TransformationRule):
+class MyPluginScopeConfig(dl.ScopeConfig):
     pass
 
 
@@ -44,8 +44,8 @@ class MyPluginToolScope(dl.ToolScope):
 
 class MyPlugin(dl.Plugin):
     connection_type = MyPluginConnection
-    transformation_rule_type =  MyPluginTransformationRule
     tool_scope_type = MyPluginToolScope
+    scope_config_type = MyPluginScopeConfig
     streams = []
 
     def domain_scopes(self, tool_scope: MyScope) -> Iterable[dl.DomainScope]:
@@ -57,7 +57,7 @@ class MyPlugin(dl.Plugin):
     def remote_scopes(self, connection, group_id: str) -> Iterable[MyPluginToolScope]:
         ...
 
-    def test_connection(self, connection: MyPluginConnection):
+    def test_connection(self, connection: MyPluginConnection) -> dl.TestConnectionResult:
         ...
 
 
@@ -68,10 +68,11 @@ if __name__ == '__main__':
 This file is the entry point to your plugin.
 It specifies three datatypes:
 - A connection that groups the parameters that your plugin needs to collect data, e.g. the url and credentials to connect to the datasource
-- A transformation rule that groups the parameters that your plugin uses to convert some data, e.g. regexes to match issue type from name.
 - A tool layer scope type that represents the top-level entity of this plugin, e.g. a board, a repository, a project, etc.
+- A scope config that contains the domain entities for a given scope and the the parameters that your plugin uses to convert some data, e.g. regexes to match issue type from name.
 
-The plugin class declares what are its connection, transformation rule and tool scope types.
+
+The plugin class declares what are its connection, tool scope, and scope config types.
 It also declares its list of streams, and is responsible to define 4 methods that we'll cover hereafter.
 
 We also need to create two shell scripts in the plugin root directory to build and run the plugin.
@@ -96,29 +97,32 @@ poetry run python myplugin/main.py "$@"
 ### Connection parameters
 
 The parameters of your plugin split between those that are required to connect to the datasource that are grouped in your connection class
-and those that are used to customize conversion to domain models that are grouped in your transformation rule class.
+and those that are used to customize conversion to domain models that are grouped in your scope config class.
 For example, to add `url` and `token` parameter, edit `MyPluginConnection` as follow:
 
 ```python
+from pydantic import SecretStr
+
 class MyPluginConnection(Connection):
     url: str
-    token: str
+    token: SecretStr
 ```
 
+Using type `SecretStr` instead of `str` will encode the value in the database.
+To get the `str` value, you need to call `get_secret_value()`: `connection.token.get_secret_value()`.
 All plugin methods that have a connection parameter will be called with an instance of this class.
 Note that you should not define `__init__`.
 
-### Transformation rule parameters
+### Scope config
 
-
-Transformation rules are used to customize the conversion of data from the tool layer to the domain layer. For example, you can define a regex to match issue type from issue name.
+A scope config contains the list of domain entities to collect and optionally some parameters used to customize the conversion of data from the tool layer to the domain layer. For example, you can define a regex to match issue type from issue name.
 
 ```python
-class MyPluginTransformationRule(TransformationRule):
+class MyPluginScopeConfig(ScopeConfig):
     issue_type_regex: str
 ```
 
-Not all plugins need transformation rules, so you can omit this class.
+If your plugin does not require any such conversion parameter, you can omit this class and the `scope_config_type` plugin attribute.
 
 
 ### Tool scope type
@@ -187,19 +191,17 @@ class MyPlugin(dl.Plugin):
 
 The `test_connection` method is used to test if a given connection is valid.
 It should check that the connection credentials are valid.
-If the connection is not valid, it should raise an exception.
+It should make an authenticated request to the API and return a `TestConnectionResult`.
+There is a convenience static method `from_api_response` to create a `TestConnectionResult` object from an API response.
 
 ```python
 class MyPlugin(dl.Plugin):
     ...
 
-    def test_connection(self, connection: MyPluginConnection):
-        api = ...
-        response = ...
-        if response.status_code != 401:
-            raise Exception("Invalid credentials")
-        if response.status_code != 200:
-            raise Exception(f"Connection error {response}")
+    def test_connection(self, connection: MyPluginConnection) -> dl.TestConnectionResult:
+        api = ... # Create API client
+        response = ... # Make authenticated request to API
+        return dl.TestConnection.from_api_response(response)
 ```
 
 
@@ -234,21 +236,29 @@ To facilitate or even eliminate extraction, your tool models should be close to 
 
 #### Migration of tool models
 
-Tool models, connection, scope and transformation rule types are stored in the DevLake database.
-When you change the definition of one of those types, you need to migrate the database.
-You should implement the migration logic in the model class by defining a `migrate` class method. This method takes a sqlalchemy session as argument that you can use to
-execute SQL `ALTER TABLE` statements.
+Tool models, connection, scope and scope config types are stored in the DevLake database.
+When you change the definition of one of those types, the database needs to be migrated.
+Automatic migration takes care of most modifications, but some changes require manual migration. For example, automatic migration never drops columns. Another example is adding a column to the primary key of a table, you need to write a script that remove the primary key constraint and add a new compound primary key.
+
+To declare a new migration script, you decorate a function with the `migration` decorator. The function name should describe what the script does. The `migration` decorator takes a version number that should be a 14 digits timestamp in the format `YYYYMMDDhhmmss`. The function takes a `MigrationScriptBuilder` as a parameter. This builder exposes methods to execute migration operations.
+
+##### Migration operations
+
+The `MigrationScriptBuilder` exposes the following methods:
+- `execute(sql: str, dialect: Optional[Dialect])`: execute a raw SQL statement. The `dialect` parameter is used to execute the SQL statement only if the database is of the given dialect. If `dialect` is `None`, the statement is executed unconditionally.
+- `drop_column(table: str, column: str)`: drop a column from a table
+- `drop_table(table: str)`: drop a table
+
 
 ```python
-class User(ToolModel, table=True):
-    id: str = Field(primary_key=True)
-    name: str
-    email: str
-    age: int
+from pydevlake.migration import MigrationScriptBuilder, migration, Dialect
 
-    @classmethod
-    def migrate(cls, session):
-        session.execute(f"ALTER TABLE {cls.__tablename__} ADD COLUMN age INT")
+@migration(20230524181430)
+def add_build_id_as_job_primary_key(b: MigrationScriptBuilder):
+    table = Job.__tablename__
+    b.execute(f'ALTER TABLE {table} DROP PRIMARY KEY', Dialect.MYSQL)
+    b.execute(f'ALTER TABLE {table} DROP CONSTRAINT {table}_pkey', Dialect.POSTGRESQL)
+    b.execute(f'ALTER TABLE {table} ADD PRIMARY KEY (id, build_id)')
 ```
 
 
@@ -367,7 +377,7 @@ from myplugin.api import MyAPI
 
     def collect(self, state, context) -> Iterable[Tuple[object, dict]]:
         api = MyAPI(context.connection.url)
-        for user in api.users().json():
+        for user in api.users().json:
             yield user, state
 
 ...
@@ -481,7 +491,8 @@ class UserComments(Substream):
         """
         This method will be called for each user collected from parent stream Users.
         """
-        for json in MyPluginAPI(context.connection.token).user_comments(user.id):
+        api = MyPluginAPI(context.connection.token.get_secret_value())
+        for json in api.user_comments(user.id):
             yield json, state
     ...
 ```

@@ -36,7 +36,7 @@ func TestIssueDataFlow(t *testing.T) {
 			ConnectionId: 1,
 			Name:         "panjf2000/ants",
 			GithubId:     134018330,
-			GithubTransformationRule: &models.GithubTransformationRule{
+			ScopeConfig: &models.GithubScopeConfig{
 				PrType:               "type/(.*)$",
 				PrComponent:          "component/(.*)$",
 				PrBodyClosePattern:   "(?mi)(fix|close|resolve|fixes|closes|resolves|fixed|closed|resolved)[\\s]*.*(((and )?(#|https:\\/\\/github.com\\/%s\\/issues\\/)\\d+[ ]*)+)",
@@ -57,6 +57,7 @@ func TestIssueDataFlow(t *testing.T) {
 	dataflowTester.FlushTabler(&models.GithubIssue{})
 	dataflowTester.FlushTabler(&models.GithubIssueLabel{})
 	dataflowTester.FlushTabler(&models.GithubRepoAccount{})
+	dataflowTester.FlushTabler(&models.GithubIssueAssignee{})
 	dataflowTester.Subtask(tasks.ExtractApiIssuesMeta, taskData)
 	dataflowTester.VerifyTable(
 		models.GithubIssue{},

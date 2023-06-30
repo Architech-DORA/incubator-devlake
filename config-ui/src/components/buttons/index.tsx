@@ -18,11 +18,33 @@
 
 import styled from 'styled-components';
 
-const Wrapper = styled.div`
+const Wrapper = styled.div<{ position: 'top' | 'bottom'; align: 'left' | 'right' | 'center' }>`
   display: flex;
   align-items: center;
-  justify-content: end;
-  margin-top: 24px;
+
+  ${({ position }) => {
+    if (position === 'top') {
+      return 'margin-bottom: 24px;';
+    }
+
+    if (position === 'bottom') {
+      return 'margin-top: 24px;';
+    }
+  }}
+
+  ${({ align }) => {
+    if (align === 'left') {
+      return 'justify-content: flex-start;';
+    }
+
+    if (align === 'right') {
+      return 'justify-content: flex-end;';
+    }
+
+    if (align === 'center') {
+      return 'justify-content: center;';
+    }
+  }}
 
   .bp4-button + .bp4-button {
     margin-left: 8px;
@@ -30,9 +52,16 @@ const Wrapper = styled.div`
 `;
 
 interface Props {
+  style?: React.CSSProperties;
+  position?: 'top' | 'bottom';
+  align?: 'left' | 'right' | 'center';
   children: React.ReactNode;
 }
 
-export const Buttons = ({ children }: Props) => {
-  return <Wrapper>{children}</Wrapper>;
+export const Buttons = ({ style, position = 'top', align = 'left', children }: Props) => {
+  return (
+    <Wrapper style={style} position={position} align={align}>
+      {children}
+    </Wrapper>
+  );
 };

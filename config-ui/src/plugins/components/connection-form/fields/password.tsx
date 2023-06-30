@@ -33,8 +33,10 @@
  *
  */
 
-import React, { useEffect } from 'react';
-import { FormGroup, InputGroup } from '@blueprintjs/core';
+import { useEffect } from 'react';
+import { FormGroup } from '@blueprintjs/core';
+
+import { FormPassword } from '@/components';
 
 import * as S from './styled';
 
@@ -77,7 +79,7 @@ export const ConnectionPassword = ({
       labelInfo={<S.LabelInfo>*</S.LabelInfo>}
       subLabel={subLabel ? <S.LabelDescription>{subLabel}</S.LabelDescription> : null}
     >
-      <InputGroup type="password" placeholder={placeholder ?? 'Your Password'} value={value} onChange={handleChange} />
+      <FormPassword placeholder={placeholder ?? 'Your Password'} value={value} onChange={handleChange} />
     </FormGroup>
   );
 };

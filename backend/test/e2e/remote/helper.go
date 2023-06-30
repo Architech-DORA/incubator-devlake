@@ -19,13 +19,17 @@ package remote
 
 import (
 	"fmt"
-	"github.com/apache/incubator-devlake/core/models"
-	"github.com/apache/incubator-devlake/core/plugin"
-	"github.com/stretchr/testify/require"
+	"github.com/apache/incubator-devlake/core/dal"
+	"github.com/apache/incubator-devlake/helpers/pluginhelper/services"
+	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/apache/incubator-devlake/core/models"
+	"github.com/apache/incubator-devlake/core/plugin"
+	"github.com/stretchr/testify/require"
 
 	"github.com/apache/incubator-devlake/test/helper"
 )
@@ -36,6 +40,20 @@ const (
 	FAKE_PLUGIN_DIR = "python/test/fakeplugin"
 )
 
+var (
+	PluginDataTables = []string{
+		"_raw_fake_fakepipelinestream",
+		"_tool_fakeplugin_fakepipelines",
+		"cicd_pipelines",
+		"cicd_scopes",
+	}
+	PluginConfigTables = []string{
+		"_tool_fakeplugin_fakescopeconfigs",
+		"_tool_fakeplugin_fakeconnections",
+	}
+	PluginScopeTable = "_tool_fakeplugin_fakeprojects"
+)
+
 type (
 	FakePluginConnection struct {
 		Id    uint64 `json:"id"`
@@ -43,22 +61,23 @@ type (
 		Token string `json:"token"`
 	}
 	FakeProject struct {
-		Id                   string `json:"id"`
-		Name                 string `json:"name"`
-		ConnectionId         uint64 `json:"connectionId"`
-		TransformationRuleId uint64 `json:"transformationRuleId"`
-		Url                  string `json:"url"`
+		Id            string `json:"id"`
+		Name          string `json:"name"`
+		ConnectionId  uint64 `json:"connectionId"`
+		ScopeConfigId uint64 `json:"scopeConfigId"`
+		Url           string `json:"url"`
 	}
-	FakeTxRule struct {
-		Id   uint64 `json:"id"`
-		Name string `json:"name"`
-		Env  string `json:"env"`
+	FakeScopeConfig struct {
+		Id       uint64   `json:"id"`
+		Name     string   `json:"name"`
+		Env      string   `json:"env"`
+		Entities []string `json:"entities"`
 	}
 	BlueprintTestParams struct {
 		connection *helper.Connection
 		projects   []models.ApiOutputProject
 		blueprints []models.Blueprint
-		rule       *FakeTxRule
+		config     *FakeScopeConfig
 		scope      *FakeProject
 	}
 )
@@ -66,7 +85,8 @@ type (
 func ConnectLocalServer(t *testing.T) *helper.DevlakeClient {
 	fmt.Println("Connect to server")
 	client := helper.StartDevLakeServer(t, nil)
-	client.SetTimeout(30 * time.Second)
+	client.SetTimeout(0 * time.Second)
+	client.SetPipelineTimeout(0 * time.Second)
 	return client
 }
 
@@ -88,30 +108,34 @@ func CreateTestConnection(client *helper.DevlakeClient) *helper.Connection {
 	return connection
 }
 
-func CreateTestScope(client *helper.DevlakeClient, rule *FakeTxRule, connectionId uint64) *FakeProject {
-	scopes := helper.Cast[[]FakeProject](client.CreateScope(PLUGIN_NAME,
+func CreateTestScope(client *helper.DevlakeClient, config *FakeScopeConfig, connectionId uint64) *FakeProject {
+	scopes := helper.Cast[[]FakeProject](client.CreateScopes(PLUGIN_NAME,
 		connectionId,
 		FakeProject{
-			Id:                   "p1",
-			Name:                 "Project 1",
-			ConnectionId:         connectionId,
-			Url:                  "http://fake.org/api/project/p1",
-			TransformationRuleId: rule.Id,
+			Id:            "p1",
+			Name:          "Project 1",
+			ConnectionId:  connectionId,
+			Url:           "http://fake.org/api/project/p1",
+			ScopeConfigId: config.Id,
 		},
 	))
 	return &scopes[0]
 }
 
-func CreateTestTransformationRule(client *helper.DevlakeClient, connectionId uint64) *FakeTxRule {
-	rule := helper.Cast[FakeTxRule](client.CreateTransformationRule(PLUGIN_NAME, connectionId, FakeTxRule{Name: "Tx rule", Env: "test env"}))
-	return &rule
+func CreateTestScopeConfig(client *helper.DevlakeClient, connectionId uint64) *FakeScopeConfig {
+	config := helper.Cast[FakeScopeConfig](client.CreateScopeConfig(PLUGIN_NAME, connectionId, FakeScopeConfig{
+		Name:     "Scope config",
+		Env:      "test env",
+		Entities: []string{plugin.DOMAIN_TYPE_CICD},
+	}))
+	return &config
 }
 
 func CreateTestBlueprints(t *testing.T, client *helper.DevlakeClient, count int) *BlueprintTestParams {
 	t.Helper()
 	connection := CreateTestConnection(client)
-	rule := CreateTestTransformationRule(client, connection.ID)
-	scope := CreateTestScope(client, rule, connection.ID)
+	config := CreateTestScopeConfig(client, connection.ID)
+	scope := CreateTestScope(client, config, connection.ID)
 	var bps []models.Blueprint
 	var projects []models.ApiOutputProject
 	for i := 1; i <= count; i++ {
@@ -129,9 +153,6 @@ func CreateTestBlueprints(t *testing.T, client *helper.DevlakeClient, count int)
 						{
 							Id:   scope.Id,
 							Name: "Test scope",
-							Entities: []string{
-								plugin.DOMAIN_TYPE_CICD,
-							},
 						},
 					},
 				},
@@ -151,7 +172,49 @@ func CreateTestBlueprints(t *testing.T, client *helper.DevlakeClient, count int)
 		connection: connection,
 		projects:   projects,
 		blueprints: bps,
-		rule:       rule,
+		config:     config,
 		scope:      scope,
 	}
+}
+
+func DeleteScopeWithDataIntegrityValidation(t *testing.T, client *helper.DevlakeClient, connectionId uint64, scopeId string, deleteDataOnly bool) services.BlueprintProjectPairs {
+	db := client.GetDal()
+	for _, table := range PluginDataTables {
+		count, err := db.Count(dal.From(table))
+		require.NoError(t, err)
+		require.Greaterf(t, int(count), 0, fmt.Sprintf("no data was found in table: %s", table))
+	}
+	configData := map[string]int{}
+	for _, table := range PluginConfigTables {
+		count, err := db.Count(dal.From(table))
+		require.NoError(t, err)
+		require.Greaterf(t, int(count), 0, fmt.Sprintf("no data was found in table: %s", table))
+		configData[table] = int(count)
+	}
+	refs := client.DeleteScope(PLUGIN_NAME, connectionId, scopeId, deleteDataOnly)
+	if client.LastReturnedStatusCode() == http.StatusOK {
+		for _, table := range PluginDataTables {
+			count, err := db.Count(dal.From(table))
+			require.NoError(t, err)
+			require.Equalf(t, 0, int(count), fmt.Sprintf("data was found in table: %s", table))
+		}
+		count, err := db.Count(dal.From(PluginScopeTable))
+		require.NoError(t, err)
+		require.Equalf(t, 0, int(count), fmt.Sprintf("data was found in table: %s", PluginScopeTable))
+	} else {
+		for _, table := range PluginDataTables {
+			count, err := db.Count(dal.From(table))
+			require.NoError(t, err)
+			require.Greaterf(t, int(count), 0, fmt.Sprintf("no data was found in table: %s", table))
+		}
+		count, err := db.Count(dal.From(PluginScopeTable))
+		require.NoError(t, err)
+		require.Greaterf(t, int(count), 0, fmt.Sprintf("no data was found in table: %s", PluginScopeTable))
+	}
+	for _, table := range PluginConfigTables {
+		count, err := db.Count(dal.From(table))
+		require.NoError(t, err)
+		require.Equalf(t, configData[table], int(count), fmt.Sprintf("data was unexpectedly changed in table: %s", table))
+	}
+	return refs
 }

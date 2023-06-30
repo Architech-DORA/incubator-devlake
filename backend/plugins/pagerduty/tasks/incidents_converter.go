@@ -19,6 +19,9 @@ package tasks
 
 import (
 	"fmt"
+	"reflect"
+	"time"
+
 	"github.com/apache/incubator-devlake/core/dal"
 	"github.com/apache/incubator-devlake/core/errors"
 	"github.com/apache/incubator-devlake/core/models/common"
@@ -28,8 +31,6 @@ import (
 	"github.com/apache/incubator-devlake/core/plugin"
 	"github.com/apache/incubator-devlake/helpers/pluginhelper/api"
 	"github.com/apache/incubator-devlake/plugins/pagerduty/models"
-	"reflect"
-	"time"
 )
 
 var ConvertIncidentsMeta = plugin.SubTaskMeta{
@@ -44,7 +45,7 @@ type (
 	// IncidentWithUser struct that represents the joined query result
 	IncidentWithUser struct {
 		common.NoPKModel
-		*models.Incident
+		models.Incident
 		*models.User
 		AssignedAt time.Time
 	}
@@ -78,15 +79,14 @@ func ConvertIncidents(taskCtx plugin.SubTaskContext) errors.Error {
 		Convert: func(inputRow interface{}) ([]interface{}, errors.Error) {
 			combined := inputRow.(*IncidentWithUser)
 			incident := combined.Incident
-			user := combined.User
 			if seen, ok := seenIncidents[incident.Number]; ok {
 				if combined.AssignedAt.Before(seen.AssignedAt) {
 					// skip this one (it's an older assignee)
 					return nil, nil
 				}
 			}
-			status := getStatus(incident)
-			leadTime, resolutionDate := getTimes(incident)
+			status := getStatus(&incident)
+			leadTime, resolutionDate := getTimes(&incident)
 			domainIssue := &ticket.Issue{
 				DomainEntity: domainlayer.DomainEntity{
 					Id: idGen.Generate(data.Options.ConnectionId, incident.Number),
@@ -102,18 +102,26 @@ func ConvertIncidents(taskCtx plugin.SubTaskContext) errors.Error {
 				UpdatedDate:     &incident.UpdatedDate,
 				LeadTimeMinutes: leadTime,
 				Priority:        string(incident.Urgency),
-				AssigneeId:      user.Id,
-				AssigneeName:    user.Name,
 			}
+			var result []interface{}
+			if combined.User != nil {
+				domainIssue.AssigneeId = combined.User.Id
+				domainIssue.AssigneeName = combined.User.Name
+				issueAssignee := &ticket.IssueAssignee{
+					IssueId:      domainIssue.Id,
+					AssigneeId:   domainIssue.AssigneeId,
+					AssigneeName: domainIssue.AssigneeName,
+				}
+				result = append(result, issueAssignee)
+			}
+			result = append(result, domainIssue)
 			seenIncidents[incident.Number] = combined
 			boardIssue := &ticket.BoardIssue{
 				BoardId: serviceIdGen.Generate(data.Options.ConnectionId, data.Options.ServiceId),
 				IssueId: domainIssue.Id,
 			}
-			return []interface{}{
-				boardIssue,
-				domainIssue,
-			}, nil
+			result = append(result, boardIssue)
+			return result, nil
 		},
 	})
 	if err != nil {

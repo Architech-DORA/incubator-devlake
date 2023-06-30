@@ -19,6 +19,8 @@ package impl
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/apache/incubator-devlake/core/context"
 	"github.com/apache/incubator-devlake/core/dal"
 	"github.com/apache/incubator-devlake/core/errors"
@@ -28,18 +30,20 @@ import (
 	"github.com/apache/incubator-devlake/plugins/pagerduty/models"
 	"github.com/apache/incubator-devlake/plugins/pagerduty/models/migrationscripts"
 	"github.com/apache/incubator-devlake/plugins/pagerduty/tasks"
-	"time"
 )
 
 // make sure interface is implemented
-var _ plugin.PluginMeta = (*PagerDuty)(nil)
-var _ plugin.PluginInit = (*PagerDuty)(nil)
-var _ plugin.PluginTask = (*PagerDuty)(nil)
-var _ plugin.PluginApi = (*PagerDuty)(nil)
 
-var _ plugin.PluginModel = (*PagerDuty)(nil)
-var _ plugin.PluginBlueprintV100 = (*PagerDuty)(nil)
-var _ plugin.CloseablePluginTask = (*PagerDuty)(nil)
+var _ interface {
+	plugin.PluginMeta
+	plugin.PluginInit
+	plugin.PluginTask
+	plugin.PluginApi
+	plugin.PluginModel
+	plugin.DataSourcePluginBlueprintV200
+	plugin.CloseablePluginTask
+	plugin.PluginSource
+} = (*PagerDuty)(nil)
 
 type PagerDuty struct{}
 
@@ -47,8 +51,25 @@ func (p PagerDuty) Description() string {
 	return "collect some PagerDuty data"
 }
 
+func (p PagerDuty) Name() string {
+	return "pagerduty"
+}
+
 func (p PagerDuty) Init(basicRes context.BasicRes) errors.Error {
-	api.Init(basicRes)
+	api.Init(basicRes, p)
+
+	return nil
+}
+
+func (p PagerDuty) Connection() dal.Tabler {
+	return &models.PagerDutyConnection{}
+}
+
+func (p PagerDuty) Scope() plugin.ToolLayerScope {
+	return &models.Service{}
+}
+
+func (p PagerDuty) ScopeConfig() dal.Tabler {
 	return nil
 }
 
@@ -63,10 +84,11 @@ func (p PagerDuty) SubTaskMetas() []plugin.SubTaskMeta {
 
 func (p PagerDuty) GetTablesInfo() []dal.Tabler {
 	return []dal.Tabler{
-		models.Service{},
-		models.Incident{},
-		models.User{},
-		models.Assignment{},
+		&models.Service{},
+		&models.Incident{},
+		&models.User{},
+		&models.Assignment{},
+		&models.PagerDutyConnection{},
 	}
 }
 
@@ -78,6 +100,7 @@ func (p PagerDuty) PrepareTaskData(taskCtx plugin.TaskContext, options map[strin
 	connectionHelper := helper.NewConnectionHelper(
 		taskCtx,
 		nil,
+		p.Name(),
 	)
 	connection := &models.PagerDutyConnection{}
 	err = connectionHelper.FirstById(connection, op.ConnectionId)
@@ -147,19 +170,7 @@ func (p PagerDuty) ApiResources() map[string]map[string]plugin.ApiResourceHandle
 			"PATCH":  api.UpdateScope,
 			"DELETE": api.DeleteScope,
 		},
-		"connections/:connectionId/transformation_rules": {
-			"POST": api.CreateTransformationRule,
-			"GET":  api.GetTransformationRuleList,
-		},
-		"connections/:connectionId/transformation_rules/:id": {
-			"PATCH": api.UpdateTransformationRule,
-			"GET":   api.GetTransformationRule,
-		},
 	}
-}
-
-func (p PagerDuty) MakePipelinePlan(connectionId uint64, scope []*plugin.BlueprintScopeV100) (plugin.PipelinePlan, errors.Error) {
-	return api.MakePipelinePlan(p.SubTaskMetas(), connectionId, scope)
 }
 
 func (p PagerDuty) MakeDataSourcePipelinePlanV200(connectionId uint64, scopes []*plugin.BlueprintScopeV200, syncPolicy plugin.BlueprintSyncPolicy,

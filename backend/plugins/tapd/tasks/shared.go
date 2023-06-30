@@ -20,6 +20,13 @@ package tasks
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"reflect"
+	"strconv"
+	"strings"
+
 	"github.com/apache/incubator-devlake/core/dal"
 	"github.com/apache/incubator-devlake/core/errors"
 	"github.com/apache/incubator-devlake/core/models/domainlayer/didgen"
@@ -27,12 +34,6 @@ import (
 	"github.com/apache/incubator-devlake/core/plugin"
 	"github.com/apache/incubator-devlake/helpers/pluginhelper/api"
 	"github.com/apache/incubator-devlake/plugins/tapd/models"
-	"io"
-	"net/http"
-	"net/url"
-	"reflect"
-	"strconv"
-	"strings"
 )
 
 type Page struct {
@@ -148,10 +149,7 @@ func GetRawMessageArrayFromResponse(res *http.Response) ([]json.RawMessage, erro
 	return data.Data, err
 }
 
-type TapdApiParams struct {
-	ConnectionId uint64
-	WorkspaceId  uint64
-}
+type TapdApiParams models.TapdApiParams
 
 // CreateRawDataSubTaskArgs creates a new instance of api.RawDataSubTaskArgs based on the provided
 // task context, raw table name, and a flag to determine if the company ID should be used.
@@ -206,10 +204,10 @@ func getTapdTypeMappings(data *TapdTaskData, db dal.Dal, system string) (map[uin
 // It returns the created map.
 func getStdTypeMappings(data *TapdTaskData) map[string]string {
 	stdTypeMappings := make(map[string]string)
-	if data.Options.TransformationRules == nil {
+	if data.Options.ScopeConfig == nil {
 		return stdTypeMappings
 	}
-	mapping := data.Options.TransformationRules.TypeMappings
+	mapping := data.Options.ScopeConfig.TypeMappings
 	// Map user types to standard types
 	for userType, stdType := range mapping {
 		stdTypeMappings[userType] = strings.ToUpper(stdType)
@@ -221,10 +219,10 @@ func getStdTypeMappings(data *TapdTaskData) map[string]string {
 // based on the provided TapdTaskData. It returns the created map.
 func getStatusMapping(data *TapdTaskData) map[string]string {
 	stdStatusMappings := make(map[string]string)
-	if data.Options.TransformationRules == nil {
+	if data.Options.ScopeConfig == nil {
 		return stdStatusMappings
 	}
-	mapping := data.Options.TransformationRules.StatusMappings
+	mapping := data.Options.ScopeConfig.StatusMappings
 	// Map original status values to standard status values
 	for userStatus, stdStatus := range mapping {
 		stdStatusMappings[userStatus] = strings.ToUpper(stdStatus)
@@ -335,4 +333,26 @@ func generateDomainAccountIdForUsers(param string, connectionId uint64) string {
 		res = append(res, getAccountIdGen().Generate(connectionId, user))
 	}
 	return strings.Join(res, ",")
+}
+
+// extractStatus extracts the status from the given blob and returns a map of status names to status values.
+func extractStatus(blob []byte) (map[string]string, errors.Error) {
+	var statusRes struct {
+		Data interface{} `json:"data"`
+	}
+	err := errors.Convert(json.Unmarshal(blob, &statusRes))
+	if err != nil {
+		return nil, err
+	}
+	data, ok := statusRes.Data.(map[string]interface{})
+	if !ok {
+		return nil, nil
+	}
+	results := make(map[string]string)
+	for k, v := range data {
+		if value, ok := v.(string); ok {
+			results[k] = value
+		}
+	}
+	return results, nil
 }

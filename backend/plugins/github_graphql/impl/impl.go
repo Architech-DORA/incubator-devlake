@@ -20,11 +20,12 @@ package impl
 import (
 	"context"
 	"fmt"
-	"github.com/apache/incubator-devlake/core/models/domainlayer/devops"
 	"net/url"
 	"reflect"
 	"strings"
 	"time"
+
+	"github.com/apache/incubator-devlake/core/models/domainlayer/devops"
 
 	"github.com/apache/incubator-devlake/core/dal"
 	"github.com/apache/incubator-devlake/core/errors"
@@ -40,29 +41,35 @@ import (
 )
 
 // make sure interface is implemented
-var _ plugin.PluginMeta = (*GithubGraphql)(nil)
-var _ plugin.PluginTask = (*GithubGraphql)(nil)
-var _ plugin.PluginApi = (*GithubGraphql)(nil)
-var _ plugin.PluginModel = (*GithubGraphql)(nil)
-var _ plugin.CloseablePluginTask = (*GithubGraphql)(nil)
-var _ plugin.PluginSource = (*GithubGraphql)(nil)
+var _ interface {
+	plugin.PluginMeta
+	plugin.PluginTask
+	plugin.PluginApi
+	plugin.PluginModel
+	plugin.PluginSource
+	plugin.CloseablePluginTask
+} = (*GithubGraphql)(nil)
 
 type GithubGraphql struct{}
 
-func (p GithubGraphql) Connection() interface{} {
+func (p GithubGraphql) Connection() dal.Tabler {
 	return &models.GithubConnection{}
 }
 
-func (p GithubGraphql) Scope() interface{} {
+func (p GithubGraphql) Scope() plugin.ToolLayerScope {
 	return &models.GithubRepo{}
 }
 
-func (p GithubGraphql) TransformationRule() interface{} {
-	return &models.GithubTransformationRule{}
+func (p GithubGraphql) ScopeConfig() dal.Tabler {
+	return &models.GithubScopeConfig{}
 }
 
 func (p GithubGraphql) Description() string {
 	return "collect some GithubGraphql data"
+}
+
+func (p GithubGraphql) Name() string {
+	return "github_graphql"
 }
 
 func (p GithubGraphql) GetTablesInfo() []dal.Tabler {
@@ -110,6 +117,7 @@ func (p GithubGraphql) SubTaskMetas() []plugin.SubTaskMeta {
 		githubTasks.ConvertPullRequestReviewsMeta,
 		githubTasks.ConvertPullRequestLabelsMeta,
 		githubTasks.ConvertPullRequestIssuesMeta,
+		githubTasks.ConvertIssueAssigneeMeta,
 		githubTasks.ConvertIssueCommentsMeta,
 		githubTasks.ConvertPullRequestCommentsMeta,
 		githubTasks.ConvertMilestonesMeta,
@@ -136,6 +144,7 @@ func (p GithubGraphql) PrepareTaskData(taskCtx plugin.TaskContext, options map[s
 	connectionHelper := helper.NewConnectionHelper(
 		taskCtx,
 		nil,
+		p.Name(),
 	)
 	connection := &models.GithubConnection{}
 	err = connectionHelper.FirstById(connection, op.ConnectionId)
@@ -187,10 +196,10 @@ func (p GithubGraphql) PrepareTaskData(taskCtx plugin.TaskContext, options map[s
 	})
 
 	regexEnricher := helper.NewRegexEnricher()
-	if err = regexEnricher.TryAdd(devops.DEPLOYMENT, op.DeploymentPattern); err != nil {
+	if err = regexEnricher.TryAdd(devops.DEPLOYMENT, op.ScopeConfig.DeploymentPattern); err != nil {
 		return nil, errors.BadInput.Wrap(err, "invalid value for `deploymentPattern`")
 	}
-	if err = regexEnricher.TryAdd(devops.PRODUCTION, op.ProductionPattern); err != nil {
+	if err = regexEnricher.TryAdd(devops.PRODUCTION, op.ScopeConfig.ProductionPattern); err != nil {
 		return nil, errors.BadInput.Wrap(err, "invalid value for `productionPattern`")
 	}
 

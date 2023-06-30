@@ -35,32 +35,36 @@ import (
 	"github.com/apache/incubator-devlake/plugins/jenkins/tasks"
 )
 
-var _ plugin.PluginMeta = (*Jenkins)(nil)
-var _ plugin.PluginInit = (*Jenkins)(nil)
-var _ plugin.PluginTask = (*Jenkins)(nil)
-var _ plugin.PluginApi = (*Jenkins)(nil)
-var _ plugin.PluginModel = (*Jenkins)(nil)
-var _ plugin.PluginMigration = (*Jenkins)(nil)
-var _ plugin.CloseablePluginTask = (*Jenkins)(nil)
-var _ plugin.PluginSource = (*Jenkins)(nil)
+var _ interface {
+	plugin.PluginMeta
+	plugin.PluginInit
+	plugin.PluginTask
+	plugin.PluginApi
+	plugin.PluginModel
+	plugin.PluginMigration
+	plugin.CloseablePluginTask
+	plugin.PluginSource
+	plugin.DataSourcePluginBlueprintV200
+} = (*Jenkins)(nil)
 
 type Jenkins struct{}
 
 func (p Jenkins) Init(basicRes context.BasicRes) errors.Error {
-	api.Init(basicRes)
+	api.Init(basicRes, p)
+
 	return nil
 }
 
-func (p Jenkins) Connection() interface{} {
+func (p Jenkins) Connection() dal.Tabler {
 	return &models.JenkinsConnection{}
 }
 
-func (p Jenkins) Scope() interface{} {
+func (p Jenkins) Scope() plugin.ToolLayerScope {
 	return &models.JenkinsJob{}
 }
 
-func (p Jenkins) TransformationRule() interface{} {
-	return &models.JenkinsTransformationRule{}
+func (p Jenkins) ScopeConfig() dal.Tabler {
+	return &models.JenkinsScopeConfig{}
 }
 
 func (p Jenkins) GetTablesInfo() []dal.Tabler {
@@ -70,14 +74,17 @@ func (p Jenkins) GetTablesInfo() []dal.Tabler {
 		&models.JenkinsConnection{},
 		&models.JenkinsJob{},
 		&models.JenkinsJobDag{},
-		&models.JenkinsPipeline{},
 		&models.JenkinsStage{},
-		&models.JenkinsTask{},
+		&models.JenkinsScopeConfig{},
 	}
 }
 
 func (p Jenkins) Description() string {
 	return "To collect and enrich data from Jenkins"
+}
+
+func (p Jenkins) Name() string {
+	return "jenkins"
 }
 
 func (p Jenkins) SubTaskMetas() []plugin.SubTaskMeta {
@@ -106,6 +113,7 @@ func (p Jenkins) PrepareTaskData(taskCtx plugin.TaskContext, options map[string]
 	connectionHelper := helper.NewConnectionHelper(
 		taskCtx,
 		nil,
+		p.Name(),
 	)
 	if err != nil {
 		return nil, err
@@ -133,10 +141,10 @@ func (p Jenkins) PrepareTaskData(taskCtx plugin.TaskContext, options map[string]
 		}
 	}
 	regexEnricher := helper.NewRegexEnricher()
-	if err := regexEnricher.TryAdd(devops.DEPLOYMENT, op.DeploymentPattern); err != nil {
+	if err := regexEnricher.TryAdd(devops.DEPLOYMENT, op.ScopeConfig.DeploymentPattern); err != nil {
 		return nil, errors.BadInput.Wrap(err, "invalid value for `deploymentPattern`")
 	}
-	if err := regexEnricher.TryAdd(devops.PRODUCTION, op.ProductionPattern); err != nil {
+	if err := regexEnricher.TryAdd(devops.PRODUCTION, op.ScopeConfig.ProductionPattern); err != nil {
 		return nil, errors.BadInput.Wrap(err, "invalid value for `productionPattern`")
 	}
 	taskData := &tasks.JenkinsTaskData{
@@ -160,10 +168,6 @@ func (p Jenkins) MigrationScripts() []plugin.MigrationScript {
 	return migrationscripts.All()
 }
 
-func (p Jenkins) MakePipelinePlan(connectionId uint64, scope []*plugin.BlueprintScopeV100) (plugin.PipelinePlan, errors.Error) {
-	return api.MakePipelinePlanV100(p.SubTaskMetas(), connectionId, scope)
-}
-
 func (p Jenkins) MakeDataSourcePipelinePlanV200(connectionId uint64, scopes []*plugin.BlueprintScopeV200, syncPolicy plugin.BlueprintSyncPolicy) (pp plugin.PipelinePlan, sc []plugin.Scope, err errors.Error) {
 	return api.MakeDataSourcePipelinePlanV200(p.SubTaskMetas(), connectionId, scopes, &syncPolicy)
 }
@@ -182,6 +186,12 @@ func (p Jenkins) ApiResources() map[string]map[string]plugin.ApiResourceHandler 
 			"DELETE": api.DeleteConnection,
 			"GET":    api.GetConnection,
 		},
+		"connections/:connectionId/remote-scopes": {
+			"GET": api.RemoteScopes,
+		},
+		"connections/:connectionId/search-remote-scopes": {
+			"GET": api.SearchRemoteScopes,
+		},
 		"connections/:connectionId/scopes/*scopeId": {
 			"GET":    api.GetScope,
 			"PATCH":  api.UpdateScope,
@@ -191,13 +201,14 @@ func (p Jenkins) ApiResources() map[string]map[string]plugin.ApiResourceHandler 
 			"GET": api.GetScopeList,
 			"PUT": api.PutScope,
 		},
-		"connections/:connectionId/transformation_rules": {
-			"POST": api.CreateTransformationRule,
-			"GET":  api.GetTransformationRuleList,
+		"connections/:connectionId/scope-configs": {
+			"POST": api.CreateScopeConfig,
+			"GET":  api.GetScopeConfigList,
 		},
-		"connections/:connectionId/transformation_rules/:id": {
-			"PATCH": api.UpdateTransformationRule,
-			"GET":   api.GetTransformationRule,
+		"connections/:connectionId/scope-configs/:id": {
+			"PATCH":  api.UpdateScopeConfig,
+			"GET":    api.GetScopeConfig,
+			"DELETE": api.DeleteScopeConfig,
 		},
 		"connections/:connectionId/proxy/rest/*path": {
 			"GET": api.Proxy,
@@ -229,21 +240,24 @@ func EnrichOptions(taskCtx plugin.TaskContext,
 	}
 	log := taskCtx.GetLogger()
 
-	// for advanced mode or others which we only have name, for bp v200, we have TransformationRuleId
+	// for advanced mode or others which we only have name, for bp v200, we have ScopeConfigId
 	err = taskCtx.GetDal().First(jenkinsJob,
 		dal.Where(`connection_id = ? and full_name = ?`,
 			op.ConnectionId, op.JobFullName))
 	if err == nil {
-		if op.TransformationRuleId == 0 {
-			op.TransformationRuleId = jenkinsJob.TransformationRuleId
+		if op.ScopeConfigId == 0 {
+			op.ScopeConfigId = jenkinsJob.ScopeConfigId
 		}
 	}
 
 	err = api.GetJob(apiClient, op.JobPath, op.JobName, op.JobFullName, 100, func(job *models.Job, isPath bool) errors.Error {
 		log.Debug(fmt.Sprintf("Current job: %s", job.FullName))
-		op.Name = job.Name
 		op.JobPath = job.Path
-		jenkinsJob := ConvertJobToJenkinsJob(job, op)
+		jenkinsJob := job.ConvertApiScope().(*models.JenkinsJob)
+
+		jenkinsJob.ConnectionId = op.ConnectionId
+		jenkinsJob.ScopeConfigId = op.ScopeConfigId
+
 		err = taskCtx.GetDal().CreateIfNotExist(jenkinsJob)
 		return err
 	})
@@ -254,35 +268,19 @@ func EnrichOptions(taskCtx plugin.TaskContext,
 	if !strings.HasSuffix(op.JobPath, "/") {
 		op.JobPath = fmt.Sprintf("%s/", op.JobPath)
 	}
-	// We only set op.JenkinsTransformationRule when it's nil and we have op.TransformationRuleId != 0
-	if op.JenkinsTransformationRule.DeploymentPattern == "" && op.JenkinsTransformationRule.ProductionPattern == "" && op.TransformationRuleId != 0 {
-		var transformationRule models.JenkinsTransformationRule
-		err = taskCtx.GetDal().First(&transformationRule, dal.Where("id = ?", op.TransformationRuleId))
+	// We only set op.JenkinsScopeConfig when it's nil and we have op.ScopeConfigId != 0
+	if op.ScopeConfig.DeploymentPattern == "" && op.ScopeConfig.ProductionPattern == "" && op.ScopeConfigId != 0 {
+		var scopeConfig models.JenkinsScopeConfig
+		err = taskCtx.GetDal().First(&scopeConfig, dal.Where("id = ?", op.ScopeConfigId))
 		if err != nil {
-			return errors.BadInput.Wrap(err, "fail to get transformationRule")
+			return errors.BadInput.Wrap(err, "fail to get scopeConfig")
 		}
-		op.JenkinsTransformationRule = &transformationRule
+		op.ScopeConfig = &scopeConfig
 	}
 
-	if op.JenkinsTransformationRule.DeploymentPattern == "" && op.JenkinsTransformationRule.ProductionPattern == "" && op.TransformationRuleId == 0 {
-		op.JenkinsTransformationRule = new(models.JenkinsTransformationRule)
+	if op.ScopeConfig.DeploymentPattern == "" && op.ScopeConfig.ProductionPattern == "" && op.ScopeConfigId == 0 {
+		op.ScopeConfig = new(models.JenkinsScopeConfig)
 	}
 
 	return nil
-}
-
-func ConvertJobToJenkinsJob(job *models.Job, op *tasks.JenkinsOptions) *models.JenkinsJob {
-	return &models.JenkinsJob{
-		ConnectionId:         op.ConnectionId,
-		FullName:             job.FullName,
-		TransformationRuleId: op.TransformationRuleId,
-		Name:                 job.Name,
-		Path:                 job.Path,
-		Class:                job.Class,
-		Color:                job.Color,
-		Base:                 job.Base,
-		Url:                  job.URL,
-		Description:          job.Description,
-		PrimaryView:          job.URL + job.Path + job.Class,
-	}
 }

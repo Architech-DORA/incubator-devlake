@@ -21,22 +21,15 @@ import styled from 'styled-components';
 export const Wrapper = styled.div`
   .top {
     display: flex;
+    align-items: center;
     justify-content: space-between;
-
-    h3 {
-      margin-bottom: 16px;
-    }
+    margin-bottom: 24px;
   }
 
   .authentication {
-    h3 {
-      span 
-    }
-  }
-
-  .action {
-    margin-top: 36px;
-    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
   }
 `;
 
@@ -51,11 +44,13 @@ export const DialogTitle = styled.div`
 `;
 
 export const DialogBody = styled.div`
-  display: flex;
-  align-items: center;
+  ul {
+    margin-top: 16px;
+    padding-left: 36px;
 
-  .bp4-icon {
-    margin-right: 8px;
-    color: #f4be55;
+    li {
+      margin-bottom: 4px;
+      color: #7497f7;
+    }
   }
 `;

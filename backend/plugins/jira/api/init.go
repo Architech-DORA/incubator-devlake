@@ -19,39 +19,52 @@ package api
 
 import (
 	"github.com/apache/incubator-devlake/core/context"
+	"github.com/apache/incubator-devlake/core/plugin"
 	"github.com/apache/incubator-devlake/helpers/pluginhelper/api"
 	"github.com/apache/incubator-devlake/plugins/jira/models"
+	"github.com/apache/incubator-devlake/plugins/jira/tasks/apiv2models"
 	"github.com/go-playground/validator/v10"
 )
 
 var vld *validator.Validate
 var connectionHelper *api.ConnectionApiHelper
-var scopeHelper *api.ScopeApiHelper[models.JiraConnection, models.JiraBoard, models.JiraTransformationRule]
+var scopeHelper *api.ScopeApiHelper[models.JiraConnection, models.JiraBoard, models.JiraScopeConfig]
+var remoteHelper *api.RemoteApiHelper[models.JiraConnection, models.JiraBoard, apiv2models.Board, api.NoRemoteGroupResponse]
 var basicRes context.BasicRes
-var trHelper *api.TransformationRuleHelper[models.JiraTransformationRule]
+var scHelper *api.ScopeConfigHelper[models.JiraScopeConfig]
 
-func Init(br context.BasicRes) {
+func Init(br context.BasicRes, p plugin.PluginMeta) {
+
 	basicRes = br
 	vld = validator.New()
 	connectionHelper = api.NewConnectionHelper(
 		basicRes,
 		vld,
+		p.Name(),
 	)
 	params := &api.ReflectionParameters{
-		ScopeIdFieldName:  "BoardID",
+		ScopeIdFieldName:  "BoardId",
 		ScopeIdColumnName: "board_id",
+		RawScopeParamName: "BoardId",
 	}
-	scopeHelper = api.NewScopeHelper[models.JiraConnection, models.JiraBoard, models.JiraTransformationRule](
+	scopeHelper = api.NewScopeHelper[models.JiraConnection, models.JiraBoard, models.JiraScopeConfig](
 		basicRes,
 		vld,
 		connectionHelper,
-		api.NewScopeDatabaseHelperImpl[models.JiraConnection, models.JiraBoard, models.JiraTransformationRule](
+		api.NewScopeDatabaseHelperImpl[models.JiraConnection, models.JiraBoard, models.JiraScopeConfig](
 			basicRes, connectionHelper, params),
 		params,
 		nil,
 	)
-	trHelper = api.NewTransformationRuleHelper[models.JiraTransformationRule](
+
+	remoteHelper = api.NewRemoteHelper[models.JiraConnection, models.JiraBoard, apiv2models.Board, api.NoRemoteGroupResponse](
 		basicRes,
 		vld,
+		connectionHelper,
+	)
+	scHelper = api.NewScopeConfigHelper[models.JiraScopeConfig](
+		basicRes,
+		vld,
+		p.Name(),
 	)
 }

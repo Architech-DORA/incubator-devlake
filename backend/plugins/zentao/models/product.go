@@ -115,7 +115,7 @@ func (res ZentaoProductRes) ConvertApiScope() plugin.ToolLayerScope {
 type ZentaoProduct struct {
 	common.NoPKModel `json:"-"`
 	ConnectionId     uint64 `json:"connectionId" mapstructure:"connectionId" gorm:"primaryKey;type:BIGINT  NOT NULL"`
-	Id               int64  `json:"id" mapstructure:"id" gorm:"primaryKey;type:BIGINT  NOT NULL"`
+	Id               int64  `json:"id" mapstructure:"id" gorm:"primaryKey;type:BIGINT  NOT NULL;autoIncrement:false"`
 	Program          int    `json:"program" mapstructure:"program"`
 	Name             string `json:"name" mapstructure:"name"`
 	Code             string `json:"code" mapstructure:"code"`
@@ -146,6 +146,7 @@ type ZentaoProduct struct {
 	Docs             int                 `json:"docs" mapstructure:"docs"`
 	Progress         float64             `json:"progress" mapstructure:"progress"`
 	CaseReview       bool                `json:"caseReview" mapstructure:"caseReview"`
+	ScopeConfigId    uint64              `json:"scopeConfigId,omitempty" mapstructure:"scopeConfigId"`
 }
 
 func (ZentaoProduct) TableName() string {
@@ -153,7 +154,14 @@ func (ZentaoProduct) TableName() string {
 }
 
 func (p ZentaoProduct) ScopeId() string {
-	return fmt.Sprintf(`product/%d`, p.Id)
+	return fmt.Sprintf(`products/%d`, p.Id)
+}
+
+func (p ZentaoProduct) ScopeParams() interface{} {
+	return &ZentaoApiParams{
+		ConnectionId: p.ConnectionId,
+		ZentaoId:     fmt.Sprintf("products/%d", p.Id),
+	}
 }
 
 func (p ZentaoProduct) ScopeName() string {

@@ -18,13 +18,14 @@ limitations under the License.
 package e2e
 
 import (
+	"testing"
+
 	"github.com/apache/incubator-devlake/core/models/common"
 	"github.com/apache/incubator-devlake/core/models/domainlayer/ticket"
 	"github.com/apache/incubator-devlake/helpers/e2ehelper"
 	"github.com/apache/incubator-devlake/plugins/tapd/impl"
 	"github.com/apache/incubator-devlake/plugins/tapd/models"
 	"github.com/apache/incubator-devlake/plugins/tapd/tasks"
-	"testing"
 )
 
 func TestTapdBugDataFlow(t *testing.T) {
@@ -36,7 +37,7 @@ func TestTapdBugDataFlow(t *testing.T) {
 		Options: &tasks.TapdOptions{
 			ConnectionId: 1,
 			WorkspaceId:  991,
-			TransformationRules: &tasks.TransformationRules{
+			ScopeConfig: &tasks.TapdScopeConfig{
 				TypeMappings: tasks.TypeMappings{
 					"BUG":  "缺陷",
 					"TASK": "任务",
@@ -99,6 +100,7 @@ func TestTapdBugDataFlow(t *testing.T) {
 	dataflowTester.FlushTabler(&ticket.BoardIssue{})
 	dataflowTester.FlushTabler(&ticket.SprintIssue{})
 	dataflowTester.FlushTabler(&ticket.IssueLabel{})
+	dataflowTester.FlushTabler(&ticket.IssueAssignee{})
 	dataflowTester.Subtask(tasks.ConvertBugMeta, taskData)
 	dataflowTester.VerifyTable(
 		ticket.Issue{},
@@ -148,6 +150,10 @@ func TestTapdBugDataFlow(t *testing.T) {
 			"sprint_id",
 		),
 	)
+	dataflowTester.VerifyTableWithOptions(ticket.IssueAssignee{}, e2ehelper.TableOptions{
+		CSVRelPath:  "./snapshot_tables/bug_issue_assignees.csv",
+		IgnoreTypes: []interface{}{common.NoPKModel{}},
+	})
 	dataflowTester.Subtask(tasks.ConvertBugLabelsMeta, taskData)
 	dataflowTester.VerifyTable(
 		ticket.IssueLabel{},

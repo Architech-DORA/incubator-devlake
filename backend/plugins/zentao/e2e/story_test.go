@@ -18,13 +18,14 @@ limitations under the License.
 package e2e
 
 import (
+	"testing"
+
 	"github.com/apache/incubator-devlake/core/models/common"
 	"github.com/apache/incubator-devlake/core/models/domainlayer/ticket"
 	"github.com/apache/incubator-devlake/helpers/e2ehelper"
 	"github.com/apache/incubator-devlake/plugins/zentao/impl"
 	"github.com/apache/incubator-devlake/plugins/zentao/models"
 	"github.com/apache/incubator-devlake/plugins/zentao/tasks"
-	"testing"
 )
 
 func TestZentaoStoryDataFlow(t *testing.T) {
@@ -36,7 +37,24 @@ func TestZentaoStoryDataFlow(t *testing.T) {
 		Options: &tasks.ZentaoOptions{
 			ConnectionId: 1,
 			ProjectId:    1,
-			ProductId:    3,
+			ScopeConfigs: &tasks.ZentaoScopeConfigs{
+				TypeMappings: map[string]string{
+					"story.feature": "REQUIRE",
+				},
+				StoryStatusMappings: map[string]string{
+					"active": ticket.DONE,
+				},
+			},
+		},
+		ProductList: map[int64]string{
+			3: "",
+		},
+		StoryList: map[int64]int64{
+			1: 1,
+			3: 3,
+			4: 4,
+			6: 6,
+			7: 7,
 		},
 	}
 
@@ -55,6 +73,7 @@ func TestZentaoStoryDataFlow(t *testing.T) {
 	// verify conversion
 	dataflowTester.FlushTabler(&ticket.Issue{})
 	dataflowTester.FlushTabler(&ticket.BoardIssue{})
+	dataflowTester.FlushTabler(&ticket.IssueAssignee{})
 	dataflowTester.Subtask(tasks.ConvertStoryMeta, taskData)
 	dataflowTester.VerifyTableWithOptions(&ticket.Issue{}, e2ehelper.TableOptions{
 		CSVRelPath:   "./snapshot_tables/issues_story.csv",
@@ -63,6 +82,10 @@ func TestZentaoStoryDataFlow(t *testing.T) {
 	})
 	dataflowTester.VerifyTableWithOptions(&ticket.BoardIssue{}, e2ehelper.TableOptions{
 		CSVRelPath:  "./snapshot_tables/board_issues_story.csv",
+		IgnoreTypes: []interface{}{common.NoPKModel{}},
+	})
+	dataflowTester.VerifyTableWithOptions(ticket.IssueAssignee{}, e2ehelper.TableOptions{
+		CSVRelPath:  "./snapshot_tables/story_issue_assignees.csv",
 		IgnoreTypes: []interface{}{common.NoPKModel{}},
 	})
 }

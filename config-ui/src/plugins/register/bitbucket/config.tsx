@@ -58,17 +58,26 @@ export const BitBucketConfig: PluginConfigType = {
       },
     ],
   },
-  entities: ['CODE', 'TICKET', 'CODEREVIEW', 'CROSS', 'CICD'],
-  transformation: {
-    issueStatusTodo: 'new,open',
-    issueStatusInProgress: '',
-    issueStatusDone: 'closed',
-    issueStatusOther: 'on hold,wontfix,duplicate,invalid',
-    deploymentPattern: '',
-    productionPattern: '',
-    refdiff: {
-      tagsLimit: 10,
-      tagsPattern: '/v\\d+\\.\\d+(\\.\\d+(-rc)*\\d*)*$/',
+  dataScope: {
+    millerColumns: {
+      title: 'Repositories *',
+      subTitle: 'Select the repositories you would like to sync.',
+      columnCount: 2,
+    },
+  },
+  scopeConfig: {
+    entities: ['CODE', 'TICKET', 'CODEREVIEW', 'CROSS', 'CICD'],
+    transformation: {
+      issueStatusTodo: 'new,open',
+      issueStatusInProgress: '',
+      issueStatusDone: 'closed',
+      issueStatusOther: 'on hold,wontfix,duplicate,invalid',
+      deploymentPattern: '',
+      productionPattern: '',
+      refdiff: {
+        tagsLimit: 10,
+        tagsPattern: '/v\\d+\\.\\d+(\\.\\d+(-rc)*\\d*)*$/',
+      },
     },
   },
 };

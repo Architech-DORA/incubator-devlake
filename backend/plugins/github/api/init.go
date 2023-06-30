@@ -18,38 +18,43 @@ limitations under the License.
 package api
 
 import (
+	"github.com/apache/incubator-devlake/core/plugin"
+	"strconv"
+
 	"github.com/apache/incubator-devlake/core/context"
 	"github.com/apache/incubator-devlake/core/dal"
 	"github.com/apache/incubator-devlake/core/errors"
 	"github.com/apache/incubator-devlake/helpers/pluginhelper/api"
 	"github.com/apache/incubator-devlake/plugins/github/models"
 	"github.com/go-playground/validator/v10"
-	"strconv"
 )
 
 var vld *validator.Validate
 var connectionHelper *api.ConnectionApiHelper
-var scopeHelper *api.ScopeApiHelper[models.GithubConnection, models.GithubRepo, models.GithubTransformationRule]
+var scopeHelper *api.ScopeApiHelper[models.GithubConnection, models.GithubRepo, models.GithubScopeConfig]
 var basicRes context.BasicRes
-var trHelper *api.TransformationRuleHelper[models.GithubTransformationRule]
+var scHelper *api.ScopeConfigHelper[models.GithubScopeConfig]
+var remoteHelper *api.RemoteApiHelper[models.GithubConnection, models.GithubRepo, repo, plugin.ApiGroup]
 
-func Init(br context.BasicRes) {
+func Init(br context.BasicRes, p plugin.PluginMeta) {
+
 	basicRes = br
 	vld = validator.New()
 	connectionHelper = api.NewConnectionHelper(
 		basicRes,
 		vld,
+		p.Name(),
 	)
 	params := &api.ReflectionParameters{
 		ScopeIdFieldName:  "GithubId",
 		ScopeIdColumnName: "github_id",
 		RawScopeParamName: "Name",
 	}
-	scopeHelper = api.NewScopeHelper[models.GithubConnection, models.GithubRepo, models.GithubTransformationRule](
+	scopeHelper = api.NewScopeHelper[models.GithubConnection, models.GithubRepo, models.GithubScopeConfig](
 		basicRes,
 		vld,
 		connectionHelper,
-		api.NewScopeDatabaseHelperImpl[models.GithubConnection, models.GithubRepo, models.GithubTransformationRule](
+		api.NewScopeDatabaseHelperImpl[models.GithubConnection, models.GithubRepo, models.GithubScopeConfig](
 			basicRes, connectionHelper, params),
 		params,
 		&api.ScopeHelperOptions{
@@ -65,12 +70,18 @@ func Init(br context.BasicRes) {
 				if err != nil {
 					return "", err
 				}
-				return repo.Name, nil
+				return repo.FullName, nil
 			},
 		},
 	)
-	trHelper = api.NewTransformationRuleHelper[models.GithubTransformationRule](
+	scHelper = api.NewScopeConfigHelper[models.GithubScopeConfig](
 		basicRes,
 		vld,
+		p.Name(),
+	)
+	remoteHelper = api.NewRemoteHelper[models.GithubConnection, models.GithubRepo, repo, plugin.ApiGroup](
+		basicRes,
+		vld,
+		connectionHelper,
 	)
 }

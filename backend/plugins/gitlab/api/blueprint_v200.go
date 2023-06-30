@@ -31,7 +31,6 @@ import (
 	"github.com/apache/incubator-devlake/core/errors"
 	"github.com/apache/incubator-devlake/core/utils"
 
-	"github.com/apache/incubator-devlake/core/dal"
 	"github.com/apache/incubator-devlake/core/models/domainlayer/code"
 	"github.com/apache/incubator-devlake/core/models/domainlayer/devops"
 	"github.com/apache/incubator-devlake/core/models/domainlayer/didgen"
@@ -79,15 +78,15 @@ func makeScopeV200(connectionId uint64, scopes []*plugin.BlueprintScopeV200) ([]
 		id := didgen.NewDomainIdGenerator(&models.GitlabProject{}).Generate(connectionId, intScopeId)
 
 		// get repo from db
-		gitlabProject, err := GetRepoByConnectionIdAndscopeId(connectionId, scope.Id)
+		gitlabProject, scopeConfig, err := scopeHelper.DbHelper().GetScopeAndConfig(connectionId, scope.Id)
 		if err != nil {
 			return nil, err
 		}
 
-		if utils.StringsContains(scope.Entities, plugin.DOMAIN_TYPE_CODE_REVIEW) ||
-			utils.StringsContains(scope.Entities, plugin.DOMAIN_TYPE_CODE) {
+		if utils.StringsContains(scopeConfig.Entities, plugin.DOMAIN_TYPE_CODE_REVIEW) ||
+			utils.StringsContains(scopeConfig.Entities, plugin.DOMAIN_TYPE_CODE) {
 			// if we don't need to collect gitex, we need to add repo to scopes here
-			scopeRepo := code.NewRepo(id, gitlabProject.Name)
+			scopeRepo := code.NewRepo(id, gitlabProject.PathWithNamespace)
 
 			if gitlabProject.ForkedFromProjectWebUrl != "" {
 				scopeRepo.ForkedFrom = gitlabProject.ForkedFromProjectWebUrl
@@ -96,16 +95,14 @@ func makeScopeV200(connectionId uint64, scopes []*plugin.BlueprintScopeV200) ([]
 		}
 
 		// add cicd_scope to scopes
-		if utils.StringsContains(scope.Entities, plugin.DOMAIN_TYPE_CICD) {
-			scopeCICD := devops.NewCicdScope(id, gitlabProject.Name)
-
+		if utils.StringsContains(scopeConfig.Entities, plugin.DOMAIN_TYPE_CICD) {
+			scopeCICD := devops.NewCicdScope(id, gitlabProject.PathWithNamespace)
 			sc = append(sc, scopeCICD)
 		}
 
 		// add board to scopes
-		if utils.StringsContains(scope.Entities, plugin.DOMAIN_TYPE_TICKET) {
-			scopeTicket := ticket.NewBoard(id, gitlabProject.Name)
-
+		if utils.StringsContains(scopeConfig.Entities, plugin.DOMAIN_TYPE_TICKET) {
+			scopeTicket := ticket.NewBoard(id, gitlabProject.PathWithNamespace)
 			sc = append(sc, scopeTicket)
 		}
 	}
@@ -123,13 +120,7 @@ func makePipelinePlanV200(
 		var stage plugin.PipelineStage
 		var err errors.Error
 		// get repo
-		repo, err := GetRepoByConnectionIdAndscopeId(connection.ID, scope.Id)
-		if err != nil {
-			return nil, err
-		}
-
-		// get transformationRuleId
-		transformationRules, err := GetTransformationRuleByRepo(repo)
+		gitlabProject, scopeConfig, err := scopeHelper.DbHelper().GetScopeAndConfig(connection.ID, scope.Id)
 		if err != nil {
 			return nil, err
 		}
@@ -144,13 +135,13 @@ func makePipelinePlanV200(
 		options := make(map[string]interface{})
 		options["connectionId"] = connection.ID
 		options["projectId"] = intScopeId
-		options["transformationRuleId"] = transformationRules.ID
+		options["scopeConfigId"] = scopeConfig.ID
 		if syncPolicy.TimeAfter != nil {
 			options["timeAfter"] = syncPolicy.TimeAfter.Format(time.RFC3339)
 		}
 
 		// construct subtasks
-		subtasks, err := helper.MakePipelinePlanSubtasks(subtaskMetas, scope.Entities)
+		subtasks, err := helper.MakePipelinePlanSubtasks(subtaskMetas, scopeConfig.Entities)
 		if err != nil {
 			return nil, err
 		}
@@ -162,8 +153,8 @@ func makePipelinePlanV200(
 		})
 
 		// collect git data by gitextractor if CODE was requested
-		if utils.StringsContains(scope.Entities, plugin.DOMAIN_TYPE_CODE) {
-			cloneUrl, err := errors.Convert01(url.Parse(repo.HttpUrlToRepo))
+		if utils.StringsContains(scopeConfig.Entities, plugin.DOMAIN_TYPE_CODE) {
+			cloneUrl, err := errors.Convert01(url.Parse(gitlabProject.HttpUrlToRepo))
 			if err != nil {
 				return nil, err
 			}
@@ -172,7 +163,8 @@ func makePipelinePlanV200(
 				Plugin: "gitextractor",
 				Options: map[string]interface{}{
 					"url":    cloneUrl.String(),
-					"repoId": didgen.NewDomainIdGenerator(&models.GitlabProject{}).Generate(connection.ID, repo.GitlabId),
+					"name":   gitlabProject.Name,
+					"repoId": didgen.NewDomainIdGenerator(&models.GitlabProject{}).Generate(connection.ID, gitlabProject.GitlabId),
 					"proxy":  connection.Proxy,
 				},
 			})
@@ -181,54 +173,15 @@ func makePipelinePlanV200(
 		plans = append(plans, stage)
 
 		// refdiff part
-		if transformationRules.Refdiff != nil {
+		if scopeConfig.Refdiff != nil {
 			task := &plugin.PipelineTask{
 				Plugin:  "refdiff",
-				Options: transformationRules.Refdiff,
+				Options: scopeConfig.Refdiff,
 			}
 			plans = append(plans, plugin.PipelineStage{task})
 		}
 	}
 	return plans, nil
-}
-
-// GetRepoByConnectionIdAndscopeId get tbe repo by the connectionId and the scopeId
-func GetRepoByConnectionIdAndscopeId(connectionId uint64, scopeId string) (*models.GitlabProject, errors.Error) {
-	gitlabId, e := strconv.Atoi(scopeId)
-	if e != nil {
-		return nil, errors.Default.Wrap(e, fmt.Sprintf("scopeId %s is not integer", scopeId))
-	}
-	repo := &models.GitlabProject{}
-	db := basicRes.GetDal()
-	err := db.First(repo, dal.Where("connection_id = ? AND gitlab_id = ?", connectionId, gitlabId))
-	if err != nil {
-		if db.IsErrorNotFound(err) {
-			return nil, errors.Default.Wrap(err, fmt.Sprintf("can not find repo by connection [%d] scope [%s]", connectionId, scopeId))
-		}
-		return nil, errors.Default.Wrap(err, fmt.Sprintf("fail to find repo by connection [%d] scope [%s]", connectionId, scopeId))
-	}
-
-	return repo, nil
-}
-
-// GetTransformationRuleByRepo get the GetTransformationRule by Repo
-func GetTransformationRuleByRepo(repo *models.GitlabProject) (*models.GitlabTransformationRule, errors.Error) {
-	transformationRules := &models.GitlabTransformationRule{}
-	transformationRuleId := repo.TransformationRuleId
-	if transformationRuleId != 0 {
-		db := basicRes.GetDal()
-		err := db.First(transformationRules, dal.Where("id = ?", transformationRuleId))
-		if err != nil {
-			if db.IsErrorNotFound(err) {
-				return nil, errors.Default.Wrap(err, fmt.Sprintf("can not find transformationRules by transformationRuleId [%d]", transformationRuleId))
-			}
-			return nil, errors.Default.Wrap(err, fmt.Sprintf("fail to find transformationRules by transformationRuleId [%d]", transformationRuleId))
-		}
-	} else {
-		transformationRules.ID = 0
-	}
-
-	return transformationRules, nil
 }
 
 func GetApiProject(

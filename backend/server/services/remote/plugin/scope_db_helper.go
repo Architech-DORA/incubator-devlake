@@ -19,18 +19,18 @@ package plugin
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/apache/incubator-devlake/core/context"
 	"github.com/apache/incubator-devlake/core/dal"
 	"github.com/apache/incubator-devlake/core/errors"
 	"github.com/apache/incubator-devlake/core/plugin"
 	"github.com/apache/incubator-devlake/helpers/pluginhelper/api"
 	"github.com/apache/incubator-devlake/server/services/remote/models"
-	"reflect"
-	"time"
 )
 
 type ScopeDatabaseHelperImpl struct {
-	api.ScopeDatabaseHelper[models.RemoteConnection, models.RemoteScope, models.RemoteTransformation]
+	api.ScopeDatabaseHelper[models.RemoteConnection, models.DynamicScopeModel, models.RemoteScopeConfig]
 	pa         *pluginAPI
 	db         dal.Dal
 	params     *api.ReflectionParameters
@@ -42,7 +42,7 @@ func NewScopeDatabaseHelperImpl(pa *pluginAPI, basicRes context.BasicRes, params
 		pa:         pa,
 		db:         basicRes.GetDal(),
 		params:     params,
-		connHelper: connectionHelper,
+		connHelper: pa.connhelper,
 	}
 }
 
@@ -58,79 +58,80 @@ func (s *ScopeDatabaseHelperImpl) VerifyConnection(connectionId uint64) errors.E
 	return nil
 }
 
-func (s *ScopeDatabaseHelperImpl) SaveScope(scopes []*models.RemoteScope) errors.Error {
+func (s *ScopeDatabaseHelperImpl) SaveScope(scopes []*models.DynamicScopeModel) errors.Error {
 	now := time.Now()
 	return s.save(scopes, &now, &now)
 }
 
-func (s *ScopeDatabaseHelperImpl) UpdateScope(connectionId uint64, scopeId string, scope *models.RemoteScope) errors.Error {
+func (s *ScopeDatabaseHelperImpl) UpdateScope(scope *models.DynamicScopeModel) errors.Error {
 	// Update API on Gorm doesn't work with dynamic models. Need to do delete + create instead, unfortunately.
-	if err := s.DeleteScope(connectionId, scopeId); err != nil {
+	if err := s.DeleteScope(scope); err != nil {
 		if !s.db.IsErrorNotFound(err) {
 			return err
 		}
 	}
 	now := time.Now()
-	return s.save([]*models.RemoteScope{scope}, nil, &now)
+	return s.save([]*models.DynamicScopeModel{scope}, nil, &now)
 }
 
-func (s *ScopeDatabaseHelperImpl) GetScope(connectionId uint64, scopeId string) (models.RemoteScope, errors.Error) {
+func (s *ScopeDatabaseHelperImpl) GetScope(connectionId uint64, scopeId string) (*models.DynamicScopeModel, errors.Error) {
 	query := dal.Where(fmt.Sprintf("connection_id = ? AND %s = ?", s.params.ScopeIdColumnName), connectionId, scopeId)
-	scope := s.pa.scopeType.New()
+	scope := models.NewDynamicScopeModel(s.pa.scopeType)
 	err := api.CallDB(s.db.First, scope, query)
 	if err != nil {
 		return nil, errors.Default.Wrap(err, "could not get scope")
 	}
-	return scope.Unwrap(), nil
+	return scope, nil
 }
 
-func (s *ScopeDatabaseHelperImpl) ListScopes(input *plugin.ApiResourceInput, connectionId uint64) ([]*models.RemoteScope, errors.Error) {
+func (s *ScopeDatabaseHelperImpl) ListScopes(input *plugin.ApiResourceInput, connectionId uint64) ([]*models.DynamicScopeModel, errors.Error) {
 	limit, offset := api.GetLimitOffset(input.Query, "pageSize", "page")
-	scopes := s.pa.scopeType.NewSlice()
+	scopes := models.NewDynamicScopeModel(s.pa.scopeType).NewSlice()
 	err := api.CallDB(s.db.All, scopes, dal.Where("connection_id = ?", connectionId), dal.Limit(limit), dal.Offset(offset))
 	if err != nil {
 		return nil, err
 	}
-	var result []*models.RemoteScope
-	for _, scope := range scopes.UnwrapSlice() {
-		scope := scope.(models.RemoteScope)
-		result = append(result, &scope)
+	var result []*models.DynamicScopeModel
+	for _, scopeRaw := range scopes.UnwrapSlice() {
+		scope := models.NewDynamicScopeModel(s.pa.scopeType)
+		_ = scope.From(scopeRaw)
+		result = append(result, scope)
 	}
 	return result, nil
 }
 
-func (s *ScopeDatabaseHelperImpl) DeleteScope(connectionId uint64, scopeId string) errors.Error {
-	rawScope := s.pa.scopeType.New()
-	return api.CallDB(s.db.Delete, rawScope, dal.Where("connection_id = ? AND id = ?", connectionId, scopeId))
+func (s *ScopeDatabaseHelperImpl) DeleteScope(scope *models.DynamicScopeModel) errors.Error {
+	return api.CallDB(s.db.Delete, scope)
 }
 
-func (s *ScopeDatabaseHelperImpl) GetTransformationRule(ruleId uint64) (models.RemoteTransformation, errors.Error) {
-	rule := s.pa.txRuleType.New()
-	err := api.CallDB(s.db.First, rule, dal.Where("id = ?", ruleId))
-	if err != nil {
-		return rule, err
-	}
-	return rule.Unwrap(), nil
-}
-
-func (s *ScopeDatabaseHelperImpl) ListTransformationRules(ruleIds []uint64) ([]*models.RemoteTransformation, errors.Error) {
-	rules := s.pa.txRuleType.NewSlice()
-	err := api.CallDB(s.db.All, rules, dal.Where("id IN (?)", ruleIds))
+func (s *ScopeDatabaseHelperImpl) GetScopeConfig(configId uint64) (*models.RemoteScopeConfig, errors.Error) {
+	config := s.pa.scopeConfigType.New()
+	err := api.CallDB(s.db.First, config, dal.Where("id = ?", configId))
 	if err != nil {
 		return nil, err
 	}
-	var result []*models.RemoteTransformation
-	for _, rule := range rules.UnwrapSlice() {
-		rule := rule.(models.RemoteTransformation)
-		result = append(result, &rule)
+	unwrapped := config.Unwrap().(models.RemoteScopeConfig)
+	return &unwrapped, nil
+}
+
+func (s *ScopeDatabaseHelperImpl) ListScopeConfigs(configIds []uint64) ([]*models.RemoteScopeConfig, errors.Error) {
+	configs := s.pa.scopeConfigType.NewSlice()
+	err := api.CallDB(s.db.All, configs, dal.Where("id IN (?)", configIds))
+	if err != nil {
+		return nil, err
+	}
+	var result []*models.RemoteScopeConfig
+	for _, config := range configs.UnwrapSlice() {
+		config := config.(models.RemoteScopeConfig)
+		result = append(result, &config)
 	}
 	return result, nil
 }
 
-func (s *ScopeDatabaseHelperImpl) save(scopes []*models.RemoteScope, createdAt *time.Time, updatedAt *time.Time) errors.Error {
+func (s *ScopeDatabaseHelperImpl) save(scopes []*models.DynamicScopeModel, createdAt *time.Time, updatedAt *time.Time) errors.Error {
 	var targets []map[string]any
-	for _, x := range scopes {
-		ifc := reflect.ValueOf(*x).Elem().Interface()
+	for _, scope := range scopes {
+		ifc := scope.UnwrapPtr()
 		m, err := models.ToDatabaseMap(s.pa.scopeType.TableName(), ifc, createdAt, updatedAt)
 		if err != nil {
 			return err
@@ -144,4 +145,4 @@ func (s *ScopeDatabaseHelperImpl) save(scopes []*models.RemoteScope, createdAt *
 	return nil
 }
 
-var _ api.ScopeDatabaseHelper[models.RemoteConnection, models.RemoteScope, models.RemoteTransformation] = &ScopeDatabaseHelperImpl{}
+var _ api.ScopeDatabaseHelper[models.RemoteConnection, models.DynamicScopeModel, models.RemoteScopeConfig] = &ScopeDatabaseHelperImpl{}

@@ -18,34 +18,37 @@ limitations under the License.
 package api
 
 import (
+	"testing"
+
+	"github.com/apache/incubator-devlake/core/models/common"
 	"github.com/apache/incubator-devlake/core/models/domainlayer"
 	"github.com/apache/incubator-devlake/core/models/domainlayer/ticket"
 	"github.com/apache/incubator-devlake/core/plugin"
-	mockcontext "github.com/apache/incubator-devlake/mocks/core/context"
+	"github.com/apache/incubator-devlake/helpers/unithelper"
 	mockdal "github.com/apache/incubator-devlake/mocks/core/dal"
 	mockplugin "github.com/apache/incubator-devlake/mocks/core/plugin"
 	"github.com/apache/incubator-devlake/plugins/jira/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"testing"
 )
 
 func TestMakeDataSourcePipelinePlanV200(t *testing.T) {
 	mockMeta := mockplugin.NewPluginMeta(t)
 	mockMeta.On("RootPkgPath").Return("github.com/apache/incubator-devlake/plugins/jira")
+	mockMeta.On("Name").Return("jira").Maybe()
 	err := plugin.RegisterPlugin("jira", mockMeta)
 	assert.Nil(t, err)
 	bs := &plugin.BlueprintScopeV200{
-		Entities: []string{"TICKET"},
-		Id:       "10",
+		Id: "10",
 	}
 	syncPolicy := &plugin.BlueprintSyncPolicy{}
 	bpScopes := make([]*plugin.BlueprintScopeV200, 0)
 	bpScopes = append(bpScopes, bs)
 	plan := make(plugin.PipelinePlan, len(bpScopes))
+	mockBasicRes(t)
+
 	plan, err = makeDataSourcePipelinePlanV200(nil, plan, bpScopes, uint64(1), syncPolicy)
 	assert.Nil(t, err)
-	basicRes = NewMockBasicRes()
 	scopes, err := makeScopesV200(bpScopes, uint64(1))
 	assert.Nil(t, err)
 
@@ -75,24 +78,30 @@ func TestMakeDataSourcePipelinePlanV200(t *testing.T) {
 	assert.Equal(t, expectScopes, scopes)
 }
 
-// NewMockBasicRes FIXME ...
-func NewMockBasicRes() *mockcontext.BasicRes {
+func mockBasicRes(t *testing.T) {
 	jiraBoard := &models.JiraBoard{
 		ConnectionId: 1,
 		BoardId:      10,
 		Name:         "a",
 	}
+	scopeConfig := &models.JiraScopeConfig{
+		ScopeConfig: common.ScopeConfig{
+			Entities: []string{plugin.DOMAIN_TYPE_TICKET},
+		},
+	}
 
-	mockRes := new(mockcontext.BasicRes)
-	mockDal := new(mockdal.Dal)
-
-	mockDal.On("First", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
-		dst := args.Get(0).(*models.JiraBoard)
-		*dst = *jiraBoard
-	}).Return(nil).Once()
-
-	mockRes.On("GetDal").Return(mockDal)
-	mockRes.On("GetConfig", mock.Anything).Return("")
-
-	return mockRes
+	// Refresh Global Variables and set the sql mock
+	mockRes := unithelper.DummyBasicRes(func(mockDal *mockdal.Dal) {
+		mockDal.On("First", mock.AnythingOfType("*models.JiraScopeConfig"), mock.Anything).Run(func(args mock.Arguments) {
+			dst := args.Get(0).(*models.JiraScopeConfig)
+			*dst = *scopeConfig
+		}).Return(nil)
+		mockDal.On("First", mock.AnythingOfType("*models.JiraBoard"), mock.Anything).Run(func(args mock.Arguments) {
+			dst := args.Get(0).(*models.JiraBoard)
+			*dst = *jiraBoard
+		}).Return(nil)
+	})
+	p := mockplugin.NewPluginMeta(t)
+	p.On("Name").Return("dummy").Maybe()
+	Init(mockRes, p)
 }

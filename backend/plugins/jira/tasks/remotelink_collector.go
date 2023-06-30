@@ -43,6 +43,11 @@ var CollectRemotelinksMeta = plugin.SubTaskMeta{
 
 func CollectRemotelinks(taskCtx plugin.SubTaskContext) errors.Error {
 	data := taskCtx.GetData().(*JiraTaskData)
+	scopeConfig := data.Options.ScopeConfig
+	// if the following condition is true, it means that the task is not enabled
+	if scopeConfig != nil && scopeConfig.ApplicationType != "" {
+		return nil
+	}
 	db := taskCtx.GetDal()
 	logger := taskCtx.GetLogger()
 	logger.Info("collect remotelink")

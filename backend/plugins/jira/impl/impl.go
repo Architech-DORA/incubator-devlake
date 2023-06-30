@@ -40,7 +40,6 @@ var _ interface {
 	plugin.PluginTask
 	plugin.PluginModel
 	plugin.PluginMigration
-	plugin.PluginBlueprintV100
 	plugin.DataSourcePluginBlueprintV200
 	plugin.CloseablePluginTask
 	plugin.PluginSource
@@ -49,20 +48,21 @@ var _ interface {
 type Jira struct {
 }
 
-func (p Jira) Connection() interface{} {
+func (p Jira) Connection() dal.Tabler {
 	return &models.JiraConnection{}
 }
 
-func (p Jira) Scope() interface{} {
+func (p Jira) Scope() plugin.ToolLayerScope {
 	return &models.JiraBoard{}
 }
 
-func (p Jira) TransformationRule() interface{} {
-	return &models.JiraTransformationRule{}
+func (p Jira) ScopeConfig() dal.Tabler {
+	return &models.JiraScopeConfig{}
 }
 
 func (p *Jira) Init(basicRes context.BasicRes) errors.Error {
-	api.Init(basicRes)
+	api.Init(basicRes, p)
+
 	return nil
 }
 
@@ -87,11 +87,17 @@ func (p Jira) GetTablesInfo() []dal.Tabler {
 		&models.JiraSprintIssue{},
 		&models.JiraStatus{},
 		&models.JiraWorklog{},
+		&models.JiraIssueComment{},
+		&models.JiraScopeConfig{},
 	}
 }
 
 func (p Jira) Description() string {
 	return "To collect and enrich data from JIRA"
+}
+
+func (p Jira) Name() string {
+	return "jira"
 }
 
 func (p Jira) SubTaskMetas() []plugin.SubTaskMeta {
@@ -137,6 +143,9 @@ func (p Jira) SubTaskMetas() []plugin.SubTaskMeta {
 		tasks.ConvertSprintsMeta,
 		tasks.ConvertSprintIssuesMeta,
 
+		tasks.CollectDevelopmentPanelMeta,
+		tasks.ExtractDevelopmentPanelMeta,
+
 		tasks.ConvertIssueCommitsMeta,
 		tasks.ConvertIssueRepoCommitsMeta,
 
@@ -165,6 +174,7 @@ func (p Jira) PrepareTaskData(taskCtx plugin.TaskContext, options map[string]int
 	connectionHelper := helper.NewConnectionHelper(
 		taskCtx,
 		nil,
+		p.Name(),
 	)
 	err = connectionHelper.FirstById(connection, op.ConnectionId)
 	if err != nil {
@@ -207,19 +217,19 @@ func (p Jira) PrepareTaskData(taskCtx plugin.TaskContext, options map[string]int
 			return nil, errors.Default.Wrap(err, fmt.Sprintf("fail to find board%s", op.ScopeId))
 		}
 		op.BoardId = jiraBoard.BoardId
-		if op.TransformationRuleId == 0 {
-			op.TransformationRuleId = jiraBoard.TransformationRuleId
+		if op.ScopeConfigId == 0 {
+			op.ScopeConfigId = jiraBoard.ScopeConfigId
 		}
 	}
-	if op.TransformationRules == nil && op.TransformationRuleId != 0 {
-		var transformationRule models.JiraTransformationRule
-		err = taskCtx.GetDal().First(&transformationRule, dal.Where("id = ?", op.TransformationRuleId))
+	if op.ScopeConfig == nil && op.ScopeConfigId != 0 {
+		var scopeConfig models.JiraScopeConfig
+		err = taskCtx.GetDal().First(&scopeConfig, dal.Where("id = ?", op.ScopeConfigId))
 		if err != nil && db.IsErrorNotFound(err) {
-			return nil, errors.BadInput.Wrap(err, "fail to get transformationRule")
+			return nil, errors.BadInput.Wrap(err, "fail to get scopeConfig")
 		}
-		op.TransformationRules, err = tasks.MakeTransformationRules(transformationRule)
+		op.ScopeConfig, err = tasks.MakeScopeConfig(scopeConfig)
 		if err != nil {
-			return nil, errors.BadInput.Wrap(err, "fail to make transformationRule")
+			return nil, errors.BadInput.Wrap(err, "fail to make scopeConfig")
 		}
 	}
 
@@ -247,10 +257,6 @@ func (p Jira) PrepareTaskData(taskCtx plugin.TaskContext, options map[string]int
 		logger.Debug("collect data created from %s", timeAfter)
 	}
 	return taskData, nil
-}
-
-func (p Jira) MakePipelinePlan(connectionId uint64, scope []*plugin.BlueprintScopeV100) (plugin.PipelinePlan, errors.Error) {
-	return api.MakePipelinePlanV100(p.SubTaskMetas(), connectionId, scope)
 }
 
 func (p Jira) MakeDataSourcePipelinePlanV200(connectionId uint64, scopes []*plugin.BlueprintScopeV200, syncPolicy plugin.BlueprintSyncPolicy) (pp plugin.PipelinePlan, sc []plugin.Scope, err errors.Error) {
@@ -287,6 +293,9 @@ func (p Jira) ApiResources() map[string]map[string]plugin.ApiResourceHandler {
 		"connections/:connectionId/proxy/rest/*path": {
 			"GET": api.Proxy,
 		},
+		"connections/:connectionId/remote-scopes": {
+			"GET": api.RemoteScopes,
+		},
 		"connections/:connectionId/scopes/:scopeId": {
 			"GET":    api.GetScope,
 			"PATCH":  api.UpdateScope,
@@ -296,13 +305,26 @@ func (p Jira) ApiResources() map[string]map[string]plugin.ApiResourceHandler {
 			"GET": api.GetScopeList,
 			"PUT": api.PutScope,
 		},
-		"connections/:connectionId/transformation_rules": {
-			"POST": api.CreateTransformationRule,
-			"GET":  api.GetTransformationRuleList,
+		"connections/:connectionId/scope-configs": {
+			"POST": api.CreateScopeConfig,
+			"GET":  api.GetScopeConfigList,
 		},
-		"connections/:connectionId/transformation_rules/:id": {
-			"PATCH": api.UpdateTransformationRule,
-			"GET":   api.GetTransformationRule,
+		"connections/:connectionId/scope-configs/:id": {
+			"PATCH":  api.UpdateScopeConfig,
+			"GET":    api.GetScopeConfig,
+			"DELETE": api.DeleteScopeConfig,
+		},
+		"connections/:connectionId/application-types": {
+			"GET": api.GetApplicationTypes,
+		},
+		"connections/:connectionId/dev-panel-commits": {
+			"GET": api.GetCommitsURLs,
+		},
+		"generate-regex": {
+			"POST": api.GenRegex,
+		},
+		"apply-regex": {
+			"POST": api.ApplyRegex,
 		},
 	}
 }

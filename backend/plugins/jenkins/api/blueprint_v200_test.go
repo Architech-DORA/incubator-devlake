@@ -18,37 +18,39 @@ limitations under the License.
 package api
 
 import (
+	"testing"
+
+	"github.com/apache/incubator-devlake/core/models/common"
 	"github.com/apache/incubator-devlake/core/models/domainlayer"
 	"github.com/apache/incubator-devlake/core/models/domainlayer/devops"
 	"github.com/apache/incubator-devlake/core/plugin"
-	mockcontext "github.com/apache/incubator-devlake/mocks/core/context"
+	"github.com/apache/incubator-devlake/helpers/unithelper"
 	mockdal "github.com/apache/incubator-devlake/mocks/core/dal"
 	mockplugin "github.com/apache/incubator-devlake/mocks/core/plugin"
 	"github.com/apache/incubator-devlake/plugins/jenkins/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"testing"
 )
 
 func TestMakeDataSourcePipelinePlanV200(t *testing.T) {
 	mockMeta := mockplugin.NewPluginMeta(t)
 	mockMeta.On("RootPkgPath").Return("github.com/apache/incubator-devlake/plugins/jenkins")
+	mockMeta.On("Name").Return("jenkins").Maybe()
 	err := plugin.RegisterPlugin("jenkins", mockMeta)
 	assert.Nil(t, err)
 	bs := &plugin.BlueprintScopeV200{
-		Entities: []string{"CICD"},
-		Id:       "a/b/ccc",
-		Name:     "",
+		Id:   "a/b/ccc",
+		Name: "",
 	}
 	syncPolicy := &plugin.BlueprintSyncPolicy{}
 	bpScopes := make([]*plugin.BlueprintScopeV200, 0)
 	bpScopes = append(bpScopes, bs)
 
-	basicRes = NewMockBasicRes()
+	mockBasicRes(t)
+
 	plan := make(plugin.PipelinePlan, len(bpScopes))
 	plan, err = makeDataSourcePipelinePlanV200(nil, plan, bpScopes, 1, syncPolicy)
 	assert.Nil(t, err)
-	basicRes = NewMockBasicRes()
 	scopes, err := makeScopesV200(bpScopes, 1)
 	assert.Nil(t, err)
 
@@ -78,22 +80,30 @@ func TestMakeDataSourcePipelinePlanV200(t *testing.T) {
 	assert.Equal(t, expectScopes, scopes)
 }
 
-// NewMockBasicRes FIXME ...
-func NewMockBasicRes() *mockcontext.BasicRes {
+func mockBasicRes(t *testing.T) {
 	jenkinsJob := &models.JenkinsJob{
 		ConnectionId: 1,
 		FullName:     "a/b/ccc",
 	}
-	mockRes := new(mockcontext.BasicRes)
-	mockDal := new(mockdal.Dal)
 
-	mockDal.On("First", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
-		dst := args.Get(0).(*models.JenkinsJob)
-		*dst = *jenkinsJob
-	}).Return(nil).Once()
+	scopeConfig := &models.JenkinsScopeConfig{
+		ScopeConfig: common.ScopeConfig{
+			Entities: []string{"CICD"},
+		},
+	}
 
-	mockRes.On("GetDal").Return(mockDal)
-	mockRes.On("GetConfig", mock.Anything).Return("")
-
-	return mockRes
+	// Refresh Global Variables and set the sql mock
+	mockRes := unithelper.DummyBasicRes(func(mockDal *mockdal.Dal) {
+		mockDal.On("First", mock.AnythingOfType("*models.JenkinsScopeConfig"), mock.Anything).Run(func(args mock.Arguments) {
+			dst := args.Get(0).(*models.JenkinsScopeConfig)
+			*dst = *scopeConfig
+		}).Return(nil)
+		mockDal.On("First", mock.AnythingOfType("*models.JenkinsJob"), mock.Anything).Run(func(args mock.Arguments) {
+			dst := args.Get(0).(*models.JenkinsJob)
+			*dst = *jenkinsJob
+		}).Return(nil)
+	})
+	p := mockplugin.NewPluginMeta(t)
+	p.On("Name").Return("dummy").Maybe()
+	Init(mockRes, p)
 }

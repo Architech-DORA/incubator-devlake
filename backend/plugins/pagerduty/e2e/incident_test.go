@@ -19,6 +19,8 @@ package e2e
 
 import (
 	"fmt"
+	"testing"
+
 	"github.com/apache/incubator-devlake/core/models/common"
 	"github.com/apache/incubator-devlake/core/models/domainlayer/ticket"
 	"github.com/apache/incubator-devlake/helpers/e2ehelper"
@@ -26,36 +28,29 @@ import (
 	"github.com/apache/incubator-devlake/plugins/pagerduty/models"
 	"github.com/apache/incubator-devlake/plugins/pagerduty/tasks"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestIncidentDataFlow(t *testing.T) {
 	var plugin impl.PagerDuty
 	dataflowTester := e2ehelper.NewDataFlowTester(t, "pagerduty", plugin)
-	rule := models.PagerdutyTransformationRule{
-		Name: "rule1",
-	}
 	options := tasks.PagerDutyOptions{
-		ConnectionId:                1,
-		ServiceId:                   "PIKL83L",
-		ServiceName:                 "DevService",
-		Tasks:                       nil,
-		PagerdutyTransformationRule: &rule,
+		ConnectionId:         1,
+		ServiceId:            "PIKL83L",
+		ServiceName:          "DevService",
+		Tasks:                nil,
+		PagerdutyScopeConfig: nil,
 	}
 	taskData := &tasks.PagerDutyTaskData{
 		Options: &options,
 	}
 
-	dataflowTester.FlushTabler(&models.PagerdutyTransformationRule{})
 	dataflowTester.FlushTabler(&models.Service{})
 	// tx-rule
-	require.NoError(t, dataflowTester.Dal.CreateOrUpdate(&rule))
 	service := models.Service{
-		ConnectionId:         options.ConnectionId,
-		Url:                  fmt.Sprintf("https://keon-test.pagerduty.com/service-directory/%s", options.ServiceId),
-		Id:                   options.ServiceId,
-		TransformationRuleId: rule.ID,
-		Name:                 options.ServiceName,
+		ConnectionId: options.ConnectionId,
+		Url:          fmt.Sprintf("https://keon-test.pagerduty.com/service-directory/%s", options.ServiceId),
+		Id:           options.ServiceId,
+		Name:         options.ServiceName,
 	}
 	// scope
 	require.NoError(t, dataflowTester.Dal.CreateOrUpdate(&service))
@@ -90,6 +85,7 @@ func TestIncidentDataFlow(t *testing.T) {
 		},
 	)
 	dataflowTester.FlushTabler(&ticket.Issue{})
+	dataflowTester.FlushTabler(&ticket.IssueAssignee{})
 	dataflowTester.Subtask(tasks.ConvertIncidentsMeta, taskData)
 	dataflowTester.VerifyTableWithOptions(
 		ticket.Issue{},
@@ -99,4 +95,8 @@ func TestIncidentDataFlow(t *testing.T) {
 			IgnoreFields: []string{"original_project"},
 		},
 	)
+	dataflowTester.VerifyTableWithOptions(ticket.IssueAssignee{}, e2ehelper.TableOptions{
+		CSVRelPath:  "./snapshot_tables/issue_assignees.csv",
+		IgnoreTypes: []interface{}{common.NoPKModel{}},
+	})
 }

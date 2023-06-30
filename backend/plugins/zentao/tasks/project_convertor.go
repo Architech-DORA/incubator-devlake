@@ -18,6 +18,7 @@ limitations under the License.
 package tasks
 
 import (
+	"fmt"
 	"reflect"
 
 	"github.com/apache/incubator-devlake/core/dal"
@@ -59,15 +60,17 @@ func ConvertProjects(taskCtx plugin.SubTaskContext) errors.Error {
 		Input:        cursor,
 		RawDataSubTaskArgs: api.RawDataSubTaskArgs{
 			Ctx: taskCtx,
-			Params: ZentaoApiParams{
-				ConnectionId: data.Options.ConnectionId,
-				ProductId:    data.Options.ProductId,
-				ProjectId:    data.Options.ProjectId,
-			},
+			Params: ScopeParams(
+				data.Options.ConnectionId,
+				data.Options.ProjectId,
+				data.Options.ProductId,
+			),
 			Table: RAW_PROJECT_TABLE,
 		},
 		Convert: func(inputRow interface{}) ([]interface{}, errors.Error) {
 			toolProject := inputRow.(*models.ZentaoProject)
+
+			data.ProjectName = toolProject.Name
 
 			domainBoard := &ticket.Board{
 				DomainEntity: domainlayer.DomainEntity{
@@ -76,7 +79,8 @@ func ConvertProjects(taskCtx plugin.SubTaskContext) errors.Error {
 				Name:        toolProject.Name,
 				Description: toolProject.Description,
 				CreatedDate: toolProject.OpenedDate.ToNullableTime(),
-				Type:        toolProject.Type + "/" + toolProject.ProjectType,
+				Type:        "scrum",
+				Url:         fmt.Sprintf("/project-index-%d.html", data.Options.ProjectId),
 			}
 			results := make([]interface{}, 0)
 			results = append(results, domainBoard)

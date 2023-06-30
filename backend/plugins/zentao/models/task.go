@@ -41,6 +41,7 @@ type ZentaoTaskRes struct {
 	Pri            int                 `json:"pri"`
 	Estimate       float64             `json:"estimate"`
 	Consumed       float64             `json:"consumed"`
+	Left           float64             `json:"left"`
 	Deadline       string              `json:"deadline"`
 	Status         string              `json:"status"`
 	SubStatus      string              `json:"subStatus"`
@@ -94,7 +95,7 @@ type ZentaoTaskRes struct {
 type ZentaoTask struct {
 	common.NoPKModel
 	ConnectionId  uint64  `gorm:"primaryKey;type:BIGINT  NOT NULL"`
-	ID            int64   `json:"id" gorm:"primaryKey;type:BIGINT  NOT NULL"`
+	ID            int64   `json:"id" gorm:"primaryKey;type:BIGINT  NOT NULL;autoIncrement:false"`
 	Project       int64   `json:"project"`
 	Parent        int64   `json:"parent"`
 	Execution     int64   `json:"execution"`
@@ -112,6 +113,7 @@ type ZentaoTask struct {
 	Pri           int     `json:"pri"`
 	Estimate      float64 `json:"estimate"`
 	Consumed      float64 `json:"consumed"`
+	Left          float64 `json:"left" gorm:"column:db_left"`
 	Deadline      string  `json:"deadline"`
 	Status        string  `json:"status"`
 	SubStatus     string  `json:"subStatus"`
@@ -158,6 +160,9 @@ type ZentaoTask struct {
 	PriOrder           string              `json:"priOrder"`
 	NeedConfirm        bool                `json:"needConfirm"`
 	Progress           float64             `json:"progress"`
+	Url                string              `json:"url"`
+	StdStatus          string              `json:"stdStatus" gorm:"type:varchar(20)"`
+	StdType            string              `json:"stdType" gorm:"type:varchar(20)"`
 }
 
 func (ZentaoTask) TableName() string {

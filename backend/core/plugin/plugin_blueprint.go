@@ -24,59 +24,6 @@ import (
 	"github.com/apache/incubator-devlake/core/errors"
 )
 
-// PipelineTask represents a smallest unit of execution inside a PipelinePlan
-type PipelineTask struct {
-	// Plugin name
-	Plugin   string                 `json:"plugin" binding:"required"`
-	Subtasks []string               `json:"subtasks"`
-	Options  map[string]interface{} `json:"options"`
-}
-
-// PipelineStage consist of multiple PipelineTasks, they will be executed in parallel
-type PipelineStage []*PipelineTask
-
-// PipelinePlan consist of multiple PipelineStages, they will be executed in sequential order
-type PipelinePlan []PipelineStage
-
-// IsEmpty checks if a PipelinePlan is empty
-func (plan PipelinePlan) IsEmpty() bool {
-	if len(plan) == 0 {
-		return true
-	}
-	for _, stage := range plan {
-		if len(stage) > 0 {
-			return false
-		}
-	}
-	return true
-}
-
-// PluginBlueprintV100 is used to support Blueprint Normal model, for Plugin and Blueprint to
-// collaboarte and generate a sophisticated Pipeline Plan based on User Settings.
-// V100 doesn't support Project, and being deprecated, please use PluginBlueprintV200 instead
-type PluginBlueprintV100 interface {
-	// MakePipelinePlan generates `pipeline.tasks` based on `version` and `scope`
-	//
-	// `version` semver from `blueprint.settings.version`
-	// `scope` arbitrary json.RawMessage, depends on `version`, for v1.0.0, it is an Array of Objects
-	MakePipelinePlan(connectionId uint64, scope []*BlueprintScopeV100) (PipelinePlan, errors.Error)
-}
-
-// BlueprintConnectionV100 is the connection definition for protocol v1.0.0
-type BlueprintConnectionV100 struct {
-	Plugin       string                `json:"plugin" validate:"required"`
-	ConnectionId uint64                `json:"connectionId" validate:"required"`
-	SkipOnFail   bool                  `json:"skipOnFail"`
-	Scope        []*BlueprintScopeV100 `json:"scope" validate:"required"`
-}
-
-// BlueprintScopeV100 is the scope definition for protocol v1.0.0
-type BlueprintScopeV100 struct {
-	Entities       []string        `json:"entities"`
-	Options        json.RawMessage `json:"options"`
-	Transformation json.RawMessage `json:"transformation"`
-}
-
 /*
 PluginBlueprintV200 for project support
 

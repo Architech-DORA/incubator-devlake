@@ -18,6 +18,11 @@ limitations under the License.
 package api
 
 import (
+	"fmt"
+	"reflect"
+	"testing"
+	"time"
+
 	"github.com/apache/incubator-devlake/core/models/common"
 	"github.com/apache/incubator-devlake/core/plugin"
 	"github.com/apache/incubator-devlake/helpers/unithelper"
@@ -28,9 +33,6 @@ import (
 	"github.com/stretchr/testify/mock"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
-	"reflect"
-	"testing"
-	"time"
 )
 
 type TestModel struct {
@@ -38,24 +40,60 @@ type TestModel struct {
 	Name string `gorm:"primaryKey;type:BIGINT  NOT NULL"`
 }
 
-type TestRepo struct {
-	ConnectionId         uint64     `json:"connectionId" gorm:"primaryKey" mapstructure:"connectionId,omitempty"`
-	GithubId             int        `json:"githubId" gorm:"primaryKey" mapstructure:"githubId"`
-	Name                 string     `json:"name" gorm:"type:varchar(255)" mapstructure:"name,omitempty"`
-	HTMLUrl              string     `json:"HTMLUrl" gorm:"type:varchar(255)" mapstructure:"HTMLUrl,omitempty"`
-	Description          string     `json:"description" mapstructure:"description,omitempty"`
-	TransformationRuleId uint64     `json:"transformationRuleId,omitempty" mapstructure:"transformationRuleId,omitempty"`
-	OwnerId              int        `json:"ownerId" mapstructure:"ownerId,omitempty"`
-	Language             string     `json:"language" gorm:"type:varchar(255)" mapstructure:"language,omitempty"`
-	ParentGithubId       int        `json:"parentId" mapstructure:"parentGithubId,omitempty"`
-	ParentHTMLUrl        string     `json:"parentHtmlUrl" mapstructure:"parentHtmlUrl,omitempty"`
-	CloneUrl             string     `json:"cloneUrl" gorm:"type:varchar(255)" mapstructure:"cloneUrl,omitempty"`
-	CreatedDate          *time.Time `json:"createdDate" mapstructure:"-"`
-	UpdatedDate          *time.Time `json:"updatedDate" mapstructure:"-"`
-	common.NoPKModel     `json:"-" mapstructure:"-"`
+type TestFakeGitlabRepo struct {
+	ConnectionId     uint64     `json:"connectionId" mapstructure:"connectionId" gorm:"primaryKey"`
+	GitlabId         int        `json:"gitlabId" mapstructure:"gitlabId" gorm:"primaryKey"`
+	CreatedDate      *time.Time `json:"createdDate" mapstructure:"-"`
+	UpdatedDate      *time.Time `json:"updatedDate" mapstructure:"-"`
+	common.NoPKModel `json:"-" mapstructure:"-"`
 }
 
-func (TestRepo) TableName() string {
+func (t TestFakeGitlabRepo) ScopeId() string {
+	return fmt.Sprintf("%d", t.GitlabId)
+}
+
+func (t TestFakeGitlabRepo) ScopeName() string {
+	return ""
+}
+
+func (t TestFakeGitlabRepo) TableName() string {
+	return ""
+}
+
+func (t TestFakeGitlabRepo) ScopeParams() interface{} {
+	return nil
+}
+
+type TestFakeGithubRepo struct {
+	ConnectionId     uint64     `json:"connectionId" gorm:"primaryKey" mapstructure:"connectionId,omitempty"`
+	GithubId         int        `json:"githubId" gorm:"primaryKey" mapstructure:"githubId"`
+	Name             string     `json:"name" gorm:"type:varchar(255)" mapstructure:"name,omitempty"`
+	HTMLUrl          string     `json:"HTMLUrl" gorm:"type:varchar(255)" mapstructure:"HTMLUrl,omitempty"`
+	Description      string     `json:"description" mapstructure:"description,omitempty"`
+	ScopeConfigId    uint64     `json:"scopeConfigId,omitempty" mapstructure:"scopeConfigId,omitempty"`
+	OwnerId          int        `json:"ownerId" mapstructure:"ownerId,omitempty"`
+	Language         string     `json:"language" gorm:"type:varchar(255)" mapstructure:"language,omitempty"`
+	ParentGithubId   int        `json:"parentId" mapstructure:"parentGithubId,omitempty"`
+	ParentHTMLUrl    string     `json:"parentHtmlUrl" mapstructure:"parentHtmlUrl,omitempty"`
+	CloneUrl         string     `json:"cloneUrl" gorm:"type:varchar(255)" mapstructure:"cloneUrl,omitempty"`
+	CreatedDate      *time.Time `json:"createdDate" mapstructure:"-"`
+	UpdatedDate      *time.Time `json:"updatedDate" mapstructure:"-"`
+	common.NoPKModel `json:"-" mapstructure:"-"`
+}
+
+func (r TestFakeGithubRepo) ScopeId() string {
+	return fmt.Sprintf("%d", r.GithubId)
+}
+
+func (r TestFakeGithubRepo) ScopeName() string {
+	return r.Name
+}
+
+func (r TestFakeGithubRepo) ScopeParams() interface{} {
+	return nil
+}
+
+func (TestFakeGithubRepo) TableName() string {
 	return "_tool_github_repos"
 }
 
@@ -73,6 +111,7 @@ func (TestConnection) TableName() string {
 }
 
 func TestVerifyScope(t *testing.T) {
+	apiHelper := createMockScopeHelper[TestFakeGithubRepo]("GithubId")
 	testCases := []struct {
 		name    string
 		model   TestModel
@@ -105,7 +144,7 @@ func TestVerifyScope(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		err := VerifyScope(&tc.model, validator.New())
+		err := apiHelper.verifyScope(&tc.model, validator.New())
 		if (err != nil) != tc.wantErr {
 			t.Errorf("unexpected error value - got: %v, want: %v", err, tc.wantErr)
 		}
@@ -113,7 +152,7 @@ func TestVerifyScope(t *testing.T) {
 	}
 }
 
-type TestTransformationRule struct {
+type TestScopeConfig struct {
 	common.Model         `mapstructure:"-"`
 	Name                 string            `mapstructure:"name" json:"name" gorm:"type:varchar(255);index:idx_name_github,unique" validate:"required"`
 	PrType               string            `mapstructure:"prType,omitempty" json:"prType" gorm:"type:varchar(255)"`
@@ -130,13 +169,13 @@ type TestTransformationRule struct {
 	Refdiff              datatypes.JSONMap `mapstructure:"refdiff,omitempty" json:"refdiff" swaggertype:"object" format:"json"`
 }
 
-func (TestTransformationRule) TableName() string {
-	return "_tool_github_transformation_rules"
+func (TestScopeConfig) TableName() string {
+	return "_tool_github_scope_configs"
 }
 
 func TestSetScopeFields(t *testing.T) {
 	// create a struct
-	var p struct {
+	type P struct {
 		ConnectionId uint64 `json:"connectionId" mapstructure:"connectionId" gorm:"primaryKey"`
 		GitlabId     int    `json:"gitlabId" mapstructure:"gitlabId" gorm:"primaryKey"`
 
@@ -144,12 +183,14 @@ func TestSetScopeFields(t *testing.T) {
 		UpdatedDate      *time.Time `json:"updatedDate" mapstructure:"-"`
 		common.NoPKModel `json:"-" mapstructure:"-"`
 	}
+	p := P{}
+	apiHelper := createMockScopeHelper[TestFakeGitlabRepo]("GitlabId")
 
 	// call setScopeFields to assign value
 	connectionId := uint64(123)
 	createdDate := time.Now()
 	updatedDate := &createdDate
-	setScopeFields(&p, connectionId, &createdDate, updatedDate)
+	apiHelper.setScopeFields(&p, connectionId, &createdDate, updatedDate)
 
 	// verify fields
 	if p.ConnectionId != connectionId {
@@ -166,7 +207,7 @@ func TestSetScopeFields(t *testing.T) {
 		t.Errorf("UpdatedDate not set correctly, expected: %v, got: %v", updatedDate, p.UpdatedDate)
 	}
 
-	setScopeFields(&p, connectionId, &createdDate, nil)
+	apiHelper.setScopeFields(&p, connectionId, &createdDate, nil)
 
 	// verify fields
 	if p.ConnectionId != connectionId {
@@ -180,15 +221,6 @@ func TestSetScopeFields(t *testing.T) {
 	if p.UpdatedDate != nil {
 		t.Errorf("UpdatedDate not set correctly, expected: %v, got: %v", nil, p.UpdatedDate)
 	}
-
-	var p1 struct {
-		ConnectionId uint64 `json:"connectionId" mapstructure:"connectionId" gorm:"primaryKey"`
-		GitlabId     int    `json:"gitlabId" mapstructure:"gitlabId" gorm:"primaryKey"`
-
-		common.NoPKModel `json:"-" mapstructure:"-"`
-	}
-	setScopeFields(&p1, connectionId, &createdDate, &createdDate)
-
 }
 
 func TestReturnPrimaryKeyValue(t *testing.T) {
@@ -239,6 +271,46 @@ func TestReturnPrimaryKeyValue(t *testing.T) {
 }
 
 func TestScopeApiHelper_Put(t *testing.T) {
+	apiHelper := createMockScopeHelper[TestFakeGithubRepo]("GithubId")
+	// create a mock input, scopes, and connection
+	input := &plugin.ApiResourceInput{Params: map[string]string{"connectionId": "123"}, Body: map[string]interface{}{
+		"data": []map[string]interface{}{
+			{
+				"HTMLUrl":       "string",
+				"githubId":      1,
+				"cloneUrl":      "string",
+				"connectionId":  1,
+				"createdAt":     "string",
+				"createdDate":   "string",
+				"description":   "string",
+				"language":      "string",
+				"name":          "string",
+				"owner":         "string",
+				"scopeConfigId": 0,
+				"updatedAt":     "string",
+				"updatedDate":   "string",
+			},
+			{
+				"HTMLUrl":       "11",
+				"githubId":      2,
+				"cloneUrl":      "string",
+				"connectionId":  1,
+				"createdAt":     "string",
+				"createdDate":   "string",
+				"description":   "string",
+				"language":      "string",
+				"name":          "string",
+				"owner":         "string",
+				"scopeConfigId": 0,
+				"updatedAt":     "string",
+				"updatedDate":   "string",
+			}}}}
+	// test a successful call to Put
+	_, err := apiHelper.Put(input)
+	assert.NoError(t, err)
+}
+
+func createMockScopeHelper[Repo plugin.ToolLayerScope](scopeIdFieldName string) *ScopeApiHelper[TestConnection, Repo, TestScopeConfig] {
 	mockDal := new(mockdal.Dal)
 	mockLogger := unithelper.DummyLogger()
 	mockRes := new(mockcontext.BasicRes)
@@ -259,47 +331,14 @@ func TestScopeApiHelper_Put(t *testing.T) {
 	mockDal.On("All", mock.Anything, mock.Anything).Return(nil)
 	mockDal.On("AllTables").Return(nil, nil)
 
-	connHelper := NewConnectionHelper(mockRes, nil)
+	connHelper := NewConnectionHelper(mockRes, nil, "dummy_plugin")
 
-	// create a mock input, scopes, and connection
-	input := &plugin.ApiResourceInput{Params: map[string]string{"connectionId": "123"}, Body: map[string]interface{}{
-		"data": []map[string]interface{}{
-			{
-				"HTMLUrl":              "string",
-				"githubId":             1,
-				"cloneUrl":             "string",
-				"connectionId":         1,
-				"createdAt":            "string",
-				"createdDate":          "string",
-				"description":          "string",
-				"language":             "string",
-				"name":                 "string",
-				"owner":                "string",
-				"transformationRuleId": 0,
-				"updatedAt":            "string",
-				"updatedDate":          "string",
-			},
-			{
-				"HTMLUrl":              "11",
-				"githubId":             2,
-				"cloneUrl":             "string",
-				"connectionId":         1,
-				"createdAt":            "string",
-				"createdDate":          "string",
-				"description":          "string",
-				"language":             "string",
-				"name":                 "string",
-				"owner":                "string",
-				"transformationRuleId": 0,
-				"updatedAt":            "string",
-				"updatedDate":          "string",
-			}}}}
-
-	params := &ReflectionParameters{}
-	dbHelper := NewScopeDatabaseHelperImpl[TestConnection, TestRepo, TestTransformationRule](mockRes, connHelper, params)
+	params := &ReflectionParameters{
+		ScopeIdFieldName:  scopeIdFieldName,
+		ScopeIdColumnName: "scope_id",
+		RawScopeParamName: "ScopeId",
+	}
+	dbHelper := NewScopeDatabaseHelperImpl[TestConnection, Repo, TestScopeConfig](mockRes, connHelper, params)
 	// create a mock ScopeApiHelper with a mock database connection
-	apiHelper := NewScopeHelper[TestConnection, TestRepo, TestTransformationRule](mockRes, nil, connHelper, dbHelper, params, nil)
-	// test a successful call to Put
-	_, err := apiHelper.Put(input)
-	assert.NoError(t, err)
+	return NewScopeHelper[TestConnection, Repo, TestScopeConfig](mockRes, validator.New(), connHelper, dbHelper, params, nil)
 }

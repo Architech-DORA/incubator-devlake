@@ -19,6 +19,7 @@ package api
 
 import (
 	"github.com/apache/incubator-devlake/core/context"
+	"github.com/apache/incubator-devlake/core/plugin"
 	"github.com/apache/incubator-devlake/helpers/pluginhelper/api"
 	"github.com/apache/incubator-devlake/plugins/jenkins/models"
 	"github.com/go-playground/validator/v10"
@@ -26,32 +27,43 @@ import (
 
 var vld *validator.Validate
 var connectionHelper *api.ConnectionApiHelper
-var scopeHelper *api.ScopeApiHelper[models.JenkinsConnection, models.JenkinsJob, models.JenkinsTransformationRule]
-var basicRes context.BasicRes
-var trHelper *api.TransformationRuleHelper[models.JenkinsTransformationRule]
+var scopeHelper *api.ScopeApiHelper[models.JenkinsConnection, models.JenkinsJob, models.JenkinsScopeConfig]
+var remoteHelper *api.RemoteApiHelper[models.JenkinsConnection, models.JenkinsJob, models.Job, models.Job]
 
-func Init(br context.BasicRes) {
+var basicRes context.BasicRes
+var scHelper *api.ScopeConfigHelper[models.JenkinsScopeConfig]
+
+func Init(br context.BasicRes, p plugin.PluginMeta) {
+
 	basicRes = br
 	vld = validator.New()
 	connectionHelper = api.NewConnectionHelper(
 		basicRes,
 		vld,
+		p.Name(),
 	)
 	params := &api.ReflectionParameters{
 		ScopeIdFieldName:  "FullName",
 		ScopeIdColumnName: "full_name",
+		RawScopeParamName: "FullName",
 	}
-	scopeHelper = api.NewScopeHelper[models.JenkinsConnection, models.JenkinsJob, models.JenkinsTransformationRule](
+	scopeHelper = api.NewScopeHelper[models.JenkinsConnection, models.JenkinsJob, models.JenkinsScopeConfig](
 		basicRes,
 		vld,
 		connectionHelper,
-		api.NewScopeDatabaseHelperImpl[models.JenkinsConnection, models.JenkinsJob, models.JenkinsTransformationRule](
+		api.NewScopeDatabaseHelperImpl[models.JenkinsConnection, models.JenkinsJob, models.JenkinsScopeConfig](
 			basicRes, connectionHelper, params),
 		params,
 		nil,
 	)
-	trHelper = api.NewTransformationRuleHelper[models.JenkinsTransformationRule](
+	remoteHelper = api.NewRemoteHelper[models.JenkinsConnection, models.JenkinsJob, models.Job, models.Job](
 		basicRes,
 		vld,
+		connectionHelper,
+	)
+	scHelper = api.NewScopeConfigHelper[models.JenkinsScopeConfig](
+		basicRes,
+		vld,
+		p.Name(),
 	)
 }

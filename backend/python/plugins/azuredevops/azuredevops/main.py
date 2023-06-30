@@ -16,13 +16,13 @@
 from urllib.parse import urlparse
 
 from azuredevops.api import AzureDevOpsAPI
-from azuredevops.models import AzureDevOpsConnection, GitRepository, AzureDevOpsTransformationRule
+from azuredevops.models import AzureDevOpsConnection, GitRepository, GitRepositoryConfig
 from azuredevops.streams.builds import Builds
 from azuredevops.streams.jobs import Jobs
 from azuredevops.streams.pull_request_commits import GitPullRequestCommits
 from azuredevops.streams.pull_requests import GitPullRequests
 
-from pydevlake import Plugin, RemoteScopeGroup, DomainType, ScopeTxRulePair
+from pydevlake import Plugin, RemoteScopeGroup, DomainType, TestConnectionResult
 from pydevlake.domain_layer.code import Repo
 from pydevlake.domain_layer.devops import CicdScope
 from pydevlake.pipeline_tasks import gitextractor, refdiff
@@ -40,8 +40,8 @@ class AzureDevOpsPlugin(Plugin):
         return GitRepository
 
     @property
-    def transformation_rule_type(self):
-        return AzureDevOpsTransformationRule
+    def scope_config_type(self):
+        return GitRepositoryConfig
 
     def domain_scopes(self, git_repo: GitRepository):
         yield Repo(
@@ -78,6 +78,7 @@ class AzureDevOpsPlugin(Plugin):
         org, proj = group_id.split('/')
         api = AzureDevOpsAPI(connection)
         for raw_repo in api.git_repos(org, proj):
+            raw_repo['name'] = f'{proj}/{raw_repo["name"]}'
             raw_repo['project_id'] = proj
             raw_repo['org_id'] = org
             # remove username from url
@@ -91,32 +92,49 @@ class AzureDevOpsPlugin(Plugin):
                 repo.parent_repository_url = raw_repo["parentRepository"]["url"]
             yield repo
 
-    def test_connection(self, connection: AzureDevOpsConnection):
-        api = AzureDevOpsAPI(connection)
-        if connection.organization is None:
-            try:
-                api.my_profile()
-            except APIException as e:
-                if e.response.status == 401:
-                    raise Exception(f"Invalid token {e}. You may need to set organization name in connection or edit your token to set organization to 'All accessible organizations'")
-                raise
-        else:
-            try:
-                api.projects(connection.organization)
-            except APIException as e:
-                raise Exception(f"Invalid token: {e}")
+        for endpoint in api.endpoints(org, proj):
+            provider = endpoint['type']
+            res = api.external_repositories(org, proj, provider, endpoint['id'])
+            for repo in res.json['repositories']:
+                props = repo['properties']
+                yield GitRepository(
+                    id=repo['id'],
+                    name=f'{provider}/{proj}/{repo["name"]}',
+                    project_id=proj,
+                    org_id=org,
+                    provider=provider,
+                    url=props['cloneUrl'],
+                    defaultBranch=props.get('defaultBranch', 'main')
+                )
 
-    def extra_tasks(self, scope: GitRepository, tx_rule: AzureDevOpsTransformationRule, entity_types: list[DomainType], connection: AzureDevOpsConnection):
-        if DomainType.CODE in entity_types:
-            url = urlparse(scope.remoteUrl)
-            url = url._replace(netloc=f'{url.username}:{connection.token}@{url.hostname}')
+    def test_connection(self, connection: AzureDevOpsConnection) -> TestConnectionResult:
+        api = AzureDevOpsAPI(connection)
+        message = None
+        hint = None
+        try:
+            if connection.organization is None:
+                hint = "You may need to edit your token to set organization to 'All accessible organizations"
+                res = api.my_profile()
+            else:
+                hint = "Organization name may be incorrect or your token may not have access to the organization."
+                res = api.projects(connection.organization)
+        except APIException as e:
+            res = e.response
+            if res.status == 401:
+                message = f"Invalid token. {hint}"
+        return TestConnectionResult.from_api_response(res, message)
+
+    def extra_tasks(self, scope: GitRepository, scope_config: GitRepositoryConfig, connection: AzureDevOpsConnection):
+        if DomainType.CODE in scope_config.domain_types and not scope.is_external():
+            url = urlparse(scope.remote_url)
+            url = url._replace(netloc=f'{url.username}:{connection.token.get_secret_value()}@{url.hostname}')
             yield gitextractor(url.geturl(), scope.domain_id(), connection.proxy)
 
-    def extra_stages(self, scope_tx_rule_pairs: list[ScopeTxRulePair], entity_types: list[DomainType], _):
-        if DomainType.CODE in entity_types:
-            for scope, tx_rule in scope_tx_rule_pairs:
-                options = tx_rule.refdiff if tx_rule else None
-                yield [refdiff(scope.id, options)]
+    def extra_stages(self, scope_config_pairs: list[tuple[GitRepository, GitRepositoryConfig]], _):
+        for scope, config in scope_config_pairs:
+            if DomainType.CODE in config.domain_types and not scope.is_external():
+                yield [refdiff(scope.id, config.refdiff)]
+
 
     @property
     def streams(self):

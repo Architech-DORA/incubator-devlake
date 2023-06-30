@@ -19,6 +19,7 @@ package api
 
 import (
 	"github.com/apache/incubator-devlake/core/context"
+	"github.com/apache/incubator-devlake/core/plugin"
 	"github.com/apache/incubator-devlake/helpers/pluginhelper/api"
 	"github.com/apache/incubator-devlake/plugins/pagerduty/models"
 	"github.com/go-playground/validator/v10"
@@ -27,34 +28,31 @@ import (
 var vld *validator.Validate
 var connectionHelper *api.ConnectionApiHelper
 
-var scopeHelper *api.ScopeApiHelper[models.PagerDutyConnection, models.Service, models.PagerdutyTransformationRule]
+var scopeHelper *api.ScopeApiHelper[models.PagerDutyConnection, models.Service, models.PagerdutyScopeConfig]
 
-var trHelper *api.TransformationRuleHelper[models.PagerdutyTransformationRule]
 var basicRes context.BasicRes
 
-func Init(br context.BasicRes) {
+func Init(br context.BasicRes, p plugin.PluginMeta) {
+
 	basicRes = br
 	vld = validator.New()
 	connectionHelper = api.NewConnectionHelper(
 		basicRes,
 		vld,
+		p.Name(),
 	)
 	params := &api.ReflectionParameters{
 		ScopeIdFieldName:  "Id",
 		ScopeIdColumnName: "id",
 		RawScopeParamName: "ScopeId",
 	}
-	scopeHelper = api.NewScopeHelper[models.PagerDutyConnection, models.Service, models.PagerdutyTransformationRule](
+	scopeHelper = api.NewScopeHelper[models.PagerDutyConnection, models.Service, models.PagerdutyScopeConfig](
 		basicRes,
 		vld,
 		connectionHelper,
-		api.NewScopeDatabaseHelperImpl[models.PagerDutyConnection, models.Service, models.PagerdutyTransformationRule](
+		api.NewScopeDatabaseHelperImpl[models.PagerDutyConnection, models.Service, models.PagerdutyScopeConfig](
 			basicRes, connectionHelper, params),
 		params,
 		&api.ScopeHelperOptions{},
-	)
-	trHelper = api.NewTransformationRuleHelper[models.PagerdutyTransformationRule](
-		basicRes,
-		vld,
 	)
 }

@@ -35,46 +35,48 @@ import (
 	"github.com/apache/incubator-devlake/helpers/unithelper"
 	"github.com/apache/incubator-devlake/plugins/gitlab/models"
 	"github.com/apache/incubator-devlake/plugins/gitlab/tasks"
-	"github.com/go-playground/validator/v10"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
 
 func TestMakeDataSourcePipelinePlanV200(t *testing.T) {
 	const testConnectionID uint64 = 1
-	const testTransformationRuleId uint64 = 2
+	const testScopeConfigId uint64 = 2
 	const testID int = 37
 	const testGitlabEndPoint string = "https://gitlab.com/api/v4/"
 	const testHttpUrlToRepo string = "https://this_is_cloneUrl"
 	const testToken string = "nddtf"
 	const testName string = "gitlab-test"
-	const testTransformationRuleName string = "github transformation rule"
+	const pathWithNamespace string = "nddtf/gitlab-test"
+	const testScopeConfigName string = "gitlab scope config"
 	const testProxy string = ""
 
 	syncPolicy := &plugin.BlueprintSyncPolicy{}
 	bpScopes := []*plugin.BlueprintScopeV200{
 		{
-			Entities: []string{plugin.DOMAIN_TYPE_CODE, plugin.DOMAIN_TYPE_TICKET, plugin.DOMAIN_TYPE_CICD},
-			Id:       strconv.Itoa(testID),
-			Name:     testName,
+			Id:   strconv.Itoa(testID),
+			Name: testName,
 		},
 	}
 
 	var testGitlabProject = &models.GitlabProject{
-		ConnectionId: testConnectionID,
-		GitlabId:     testID,
-		Name:         testName,
-
-		TransformationRuleId: testTransformationRuleId,
-		CreatedDate:          &time.Time{},
-		HttpUrlToRepo:        testHttpUrlToRepo,
+		ConnectionId:      testConnectionID,
+		GitlabId:          testID,
+		Name:              testName,
+		PathWithNamespace: pathWithNamespace,
+		ScopeConfigId:     testScopeConfigId,
+		CreatedDate:       &time.Time{},
+		HttpUrlToRepo:     testHttpUrlToRepo,
 	}
 
-	var testTransformationRule = &models.GitlabTransformationRule{
-		Model: common.Model{
-			ID: testTransformationRuleId,
+	var testScopeConfig = &models.GitlabScopeConfig{
+		ScopeConfig: common.ScopeConfig{
+			Model: common.Model{
+				ID: testScopeConfigId,
+			},
+			Entities: []string{plugin.DOMAIN_TYPE_CODE, plugin.DOMAIN_TYPE_TICKET, plugin.DOMAIN_TYPE_CICD},
 		},
-		Name:   testTransformationRuleName,
+		Name:   testScopeConfigName,
 		PrType: "hey,man,wasup",
 		Refdiff: map[string]interface{}{
 			"tagsPattern": "pattern",
@@ -132,9 +134,9 @@ func TestMakeDataSourcePipelinePlanV200(t *testing.T) {
 					tasks.ExtractApiPipelinesMeta.Name,
 				},
 				Options: map[string]interface{}{
-					"connectionId":         uint64(1),
-					"projectId":            testID,
-					"transformationRuleId": testTransformationRuleId,
+					"connectionId":  uint64(1),
+					"projectId":     testID,
+					"scopeConfigId": testScopeConfigId,
 				},
 			},
 			{
@@ -142,6 +144,7 @@ func TestMakeDataSourcePipelinePlanV200(t *testing.T) {
 				Options: map[string]interface{}{
 					"proxy":  "",
 					"repoId": expectRepoId,
+					"name":   testName,
 					"url":    "https://git:nddtf@this_is_cloneUrl",
 				},
 			},
@@ -158,14 +161,14 @@ func TestMakeDataSourcePipelinePlanV200(t *testing.T) {
 		},
 	}
 
-	expectRepo := code.NewRepo(expectRepoId, testName)
+	expectRepo := code.NewRepo(expectRepoId, pathWithNamespace)
 	expectRepo.ForkedFrom = testGitlabProject.ForkedFromProjectWebUrl
 
-	expectCicdScope := devops.NewCicdScope(expectRepoId, testName)
+	expectCicdScope := devops.NewCicdScope(expectRepoId, pathWithNamespace)
 	expectCicdScope.Description = ""
 	expectCicdScope.Url = ""
 
-	expectBoard := ticket.NewBoard(expectRepoId, testName)
+	expectBoard := ticket.NewBoard(expectRepoId, pathWithNamespace)
 	expectBoard.Description = ""
 	expectBoard.Url = ""
 	expectBoard.Type = ""
@@ -175,30 +178,28 @@ func TestMakeDataSourcePipelinePlanV200(t *testing.T) {
 	// register gitlab plugin for NewDomainIdGenerator
 	mockMeta := mockplugin.NewPluginMeta(t)
 	mockMeta.On("RootPkgPath").Return("github.com/apache/incubator-devlake/plugins/gitlab")
+	mockMeta.On("Name").Return("dummy").Maybe()
 	err = plugin.RegisterPlugin("gitlab", mockMeta)
 	assert.Equal(t, err, nil)
 
 	// Refresh Global Variables and set the sql mock
-	basicRes = unithelper.DummyBasicRes(func(mockDal *mockdal.Dal) {
-		mockDal.On("First", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+	mockRes := unithelper.DummyBasicRes(func(mockDal *mockdal.Dal) {
+		mockDal.On("First", mock.AnythingOfType("*models.GitlabConnection"), mock.Anything).Run(func(args mock.Arguments) {
 			dst := args.Get(0).(*models.GitlabConnection)
 			*dst = *testGitlabConnection
-		}).Return(nil).Once()
+		}).Return(nil)
 
-		mockDal.On("First", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		mockDal.On("First", mock.AnythingOfType("*models.GitlabProject"), mock.Anything).Run(func(args mock.Arguments) {
 			dst := args.Get(0).(*models.GitlabProject)
 			*dst = *testGitlabProject
-		}).Return(nil).Twice()
+		}).Return(nil)
 
-		mockDal.On("First", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
-			dst := args.Get(0).(*models.GitlabTransformationRule)
-			*dst = *testTransformationRule
-		}).Return(nil).Once()
+		mockDal.On("First", mock.AnythingOfType("*models.GitlabScopeConfig"), mock.Anything).Run(func(args mock.Arguments) {
+			dst := args.Get(0).(*models.GitlabScopeConfig)
+			*dst = *testScopeConfig
+		}).Return(nil)
 	})
-	connectionHelper = helper.NewConnectionHelper(
-		basicRes,
-		validator.New(),
-	)
+	Init(mockRes, mockMeta)
 
 	plans, scopes, err := MakePipelinePlanV200(testSubTaskMeta, testConnectionID, bpScopes, syncPolicy)
 	assert.Equal(t, err, nil)

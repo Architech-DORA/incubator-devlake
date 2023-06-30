@@ -19,8 +19,9 @@ package impl
 
 import (
 	"fmt"
-	"github.com/apache/incubator-devlake/core/models/domainlayer/devops"
 	"time"
+
+	"github.com/apache/incubator-devlake/core/models/domainlayer/devops"
 
 	"github.com/apache/incubator-devlake/core/context"
 	"github.com/apache/incubator-devlake/core/dal"
@@ -33,31 +34,34 @@ import (
 	"github.com/apache/incubator-devlake/plugins/github/tasks"
 )
 
-var _ plugin.PluginMeta = (*Github)(nil)
-var _ plugin.PluginInit = (*Github)(nil)
-var _ plugin.PluginTask = (*Github)(nil)
-var _ plugin.PluginApi = (*Github)(nil)
-var _ plugin.PluginModel = (*Github)(nil)
-var _ plugin.PluginBlueprintV100 = (*Github)(nil)
-var _ plugin.CloseablePluginTask = (*Github)(nil)
-var _ plugin.PluginSource = (*Github)(nil)
+var _ interface {
+	plugin.PluginMeta
+	plugin.PluginInit
+	plugin.PluginTask
+	plugin.PluginApi
+	plugin.PluginModel
+	plugin.PluginSource
+	plugin.DataSourcePluginBlueprintV200
+	plugin.CloseablePluginTask
+} = (*Github)(nil)
 
 type Github struct{}
 
-func (p Github) Connection() interface{} {
+func (p Github) Connection() dal.Tabler {
 	return &models.GithubConnection{}
 }
 
-func (p Github) Scope() interface{} {
+func (p Github) Scope() plugin.ToolLayerScope {
 	return &models.GithubRepo{}
 }
 
-func (p Github) TransformationRule() interface{} {
-	return &models.GithubTransformationRule{}
+func (p Github) ScopeConfig() dal.Tabler {
+	return &models.GithubScopeConfig{}
 }
 
 func (p Github) Init(basicRes context.BasicRes) errors.Error {
-	api.Init(basicRes)
+	api.Init(basicRes, p)
+
 	return nil
 }
 
@@ -85,11 +89,17 @@ func (p Github) GetTablesInfo() []dal.Tabler {
 		&models.GithubRepoCommit{},
 		&models.GithubReviewer{},
 		&models.GithubRun{},
+		&models.GithubIssueAssignee{},
+		&models.GithubScopeConfig{},
 	}
 }
 
 func (p Github) Description() string {
 	return "To collect and enrich data from GitHub"
+}
+
+func (p Github) Name() string {
+	return "github"
 }
 
 func (p Github) SubTaskMetas() []plugin.SubTaskMeta {
@@ -127,6 +137,7 @@ func (p Github) SubTaskMetas() []plugin.SubTaskMeta {
 		tasks.EnrichPullRequestIssuesMeta,
 		tasks.ConvertRepoMeta,
 		tasks.ConvertIssuesMeta,
+		tasks.ConvertIssueAssigneeMeta,
 		tasks.ConvertCommitsMeta,
 		tasks.ConvertIssueLabelsMeta,
 		tasks.ConvertPullRequestCommitsMeta,
@@ -151,6 +162,7 @@ func (p Github) PrepareTaskData(taskCtx plugin.TaskContext, options map[string]i
 	connectionHelper := helper.NewConnectionHelper(
 		taskCtx,
 		nil,
+		p.Name(),
 	)
 	connection := &models.GithubConnection{}
 	err = connectionHelper.FirstById(connection, op.ConnectionId)
@@ -167,10 +179,10 @@ func (p Github) PrepareTaskData(taskCtx plugin.TaskContext, options map[string]i
 	}
 
 	regexEnricher := helper.NewRegexEnricher()
-	if err = regexEnricher.TryAdd(devops.DEPLOYMENT, op.DeploymentPattern); err != nil {
+	if err = regexEnricher.TryAdd(devops.DEPLOYMENT, op.ScopeConfig.DeploymentPattern); err != nil {
 		return nil, errors.BadInput.Wrap(err, "invalid value for `deploymentPattern`")
 	}
-	if err = regexEnricher.TryAdd(devops.PRODUCTION, op.ProductionPattern); err != nil {
+	if err = regexEnricher.TryAdd(devops.PRODUCTION, op.ScopeConfig.ProductionPattern); err != nil {
 		return nil, errors.BadInput.Wrap(err, "invalid value for `productionPattern`")
 	}
 
@@ -223,22 +235,25 @@ func (p Github) ApiResources() map[string]map[string]plugin.ApiResourceHandler {
 			"GET": api.GetScopeList,
 			"PUT": api.PutScope,
 		},
-		"connections/:connectionId/transformation_rules": {
-			"POST": api.CreateTransformationRule,
-			"GET":  api.GetTransformationRuleList,
+		"connections/:connectionId/scope-configs": {
+			"POST": api.CreateScopeConfig,
+			"GET":  api.GetScopeConfigList,
 		},
-		"connections/:connectionId/transformation_rules/:id": {
-			"PATCH": api.UpdateTransformationRule,
-			"GET":   api.GetTransformationRule,
+		"connections/:connectionId/scope-configs/:id": {
+			"PATCH":  api.UpdateScopeConfig,
+			"GET":    api.GetScopeConfig,
+			"DELETE": api.DeleteScopeConfig,
+		},
+		"connections/:connectionId/remote-scopes": {
+			"GET": api.RemoteScopes,
+		},
+		"connections/:connectionId/search-remote-scopes": {
+			"GET": api.SearchRemoteScopes,
 		},
 		"connections/:connectionId/proxy/rest/*path": {
 			"GET": api.Proxy,
 		},
 	}
-}
-
-func (p Github) MakePipelinePlan(connectionId uint64, scope []*plugin.BlueprintScopeV100) (plugin.PipelinePlan, errors.Error) {
-	return api.MakePipelinePlan(p.SubTaskMetas(), connectionId, scope)
 }
 
 func (p Github) MakeDataSourcePipelinePlanV200(connectionId uint64, scopes []*plugin.BlueprintScopeV200, syncPolicy plugin.BlueprintSyncPolicy) (pp plugin.PipelinePlan, sc []plugin.Scope, err errors.Error) {
@@ -266,13 +281,13 @@ func EnrichOptions(taskCtx plugin.TaskContext,
 	logger := taskCtx.GetLogger()
 	// for advanced mode or others which we only have name, for bp v200, we have githubId
 	err = taskCtx.GetDal().First(&githubRepo, dal.Where(
-		"connection_id = ? AND( name = ? OR github_id = ?)",
+		"connection_id = ? AND( full_name = ? OR github_id = ?)",
 		op.ConnectionId, op.Name, op.GithubId))
 	if err == nil {
-		op.Name = githubRepo.Name
+		op.Name = githubRepo.FullName
 		op.GithubId = githubRepo.GithubId
-		if op.TransformationRuleId == 0 {
-			op.TransformationRuleId = githubRepo.TransformationRuleId
+		if op.ScopeConfigId == 0 {
+			op.ScopeConfigId = githubRepo.ScopeConfigId
 		}
 	} else {
 		if taskCtx.GetDal().IsErrorNotFound(err) && op.Name != "" {
@@ -292,18 +307,18 @@ func EnrichOptions(taskCtx plugin.TaskContext,
 			return errors.Default.Wrap(err, fmt.Sprintf("fail to find repo %s", op.Name))
 		}
 	}
-	// Set GithubTransformationRule if it's nil, this has lower priority
-	if op.GithubTransformationRule == nil && op.TransformationRuleId != 0 {
-		var transformationRule models.GithubTransformationRule
+	// Set GithubScopeConfig if it's nil, this has lower priority
+	if op.ScopeConfig == nil && op.ScopeConfigId != 0 {
+		var scopeConfig models.GithubScopeConfig
 		db := taskCtx.GetDal()
-		err = db.First(&transformationRule, dal.Where("id = ?", githubRepo.TransformationRuleId))
+		err = db.First(&scopeConfig, dal.Where("id = ?", githubRepo.ScopeConfigId))
 		if err != nil && !db.IsErrorNotFound(err) {
-			return errors.BadInput.Wrap(err, "fail to get transformationRule")
+			return errors.BadInput.Wrap(err, "fail to get scopeConfig")
 		}
-		op.GithubTransformationRule = &transformationRule
+		op.ScopeConfig = &scopeConfig
 	}
-	if op.GithubTransformationRule == nil && op.TransformationRuleId == 0 {
-		op.GithubTransformationRule = new(models.GithubTransformationRule)
+	if op.ScopeConfig == nil && op.ScopeConfigId == 0 {
+		op.ScopeConfig = new(models.GithubScopeConfig)
 	}
 	return err
 }
@@ -316,7 +331,8 @@ func convertApiRepoToScope(repo *tasks.GithubApiRepo, connectionId uint64) *mode
 	scope.Language = repo.Language
 	scope.Description = repo.Description
 	scope.HTMLUrl = repo.HTMLUrl
-	scope.Name = repo.FullName
+	scope.Name = repo.Name
+	scope.FullName = repo.FullName
 	scope.CloneUrl = repo.CloneUrl
 	return &scope
 }

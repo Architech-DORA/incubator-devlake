@@ -25,6 +25,9 @@ import (
 func All() []plugin.MigrationScript {
 	return []plugin.MigrationScript{
 		new(addInitTables),
+		new(addScopeConfigTables),
+		new(addIssueRepoCommitsTables),
 		new(addInitChangelogTables),
+		new(addTaskLeft),
 	}
 }

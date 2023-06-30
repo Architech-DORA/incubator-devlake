@@ -26,7 +26,7 @@ import (
 type ZentaoChangelog struct {
 	archived.NoPKModel `json:"-"`
 	ConnectionId       uint64    `json:"connectionId" mapstructure:"connectionId" gorm:"primaryKey;type:BIGINT  NOT NULL"`
-	Id                 int64     `json:"id" mapstructure:"id" gorm:"primaryKey;type:BIGINT  NOT NULL"`
+	Id                 int64     `json:"id" mapstructure:"id" gorm:"primaryKey;type:BIGINT  NOT NULL;autoIncrement:false"`
 	ObjectId           int       `json:"objectId" mapstructure:"objectId" gorm:"index; NOT NULL"`
 	Execution          int       `json:"execution" mapstructure:"execution" `
 	Actor              string    `json:"actor" mapstructure:"actor" `
@@ -34,7 +34,7 @@ type ZentaoChangelog struct {
 	Extra              string    `json:"extra" mapstructure:"extra"`
 	ObjectType         string    `json:"objectType" mapstructure:"objectType"`
 	Project            int       `json:"project" mapstructure:"project"`
-	Product            string    `json:"product" mapstructure:"product"`
+	Product            int       `json:"product" mapstructure:"product"`
 	Vision             string    `json:"vision" mapstructure:"vision"`
 	Comment            string    `json:"comment" mapstructure:"comment"`
 	Efforted           string    `json:"efforted" mapstructure:"efforted"`
@@ -49,7 +49,7 @@ func (ZentaoChangelog) TableName() string {
 type ZentaoChangelogDetail struct {
 	archived.NoPKModel `json:"-"`
 	ConnectionId       uint64 `json:"connectionId" mapstructure:"connectionId" gorm:"primaryKey;type:BIGINT  NOT NULL"`
-	Id                 int64  `json:"id" mapstructure:"id" gorm:"primaryKey;type:BIGINT  NOT NULL"`
+	Id                 int64  `json:"id" mapstructure:"id" gorm:"primaryKey;type:BIGINT  NOT NULL;autoIncrement:false"`
 	ChangelogId        int64  `json:"changelogId" mapstructure:"changelogId" gorm:"primaryKey;type:BIGINT  NOT NULL"`
 	Field              string `json:"field" mapstructure:"field"`
 	Old                string `json:"old" mapstructure:"old"`

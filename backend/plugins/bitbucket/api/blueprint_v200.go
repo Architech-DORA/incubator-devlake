@@ -18,11 +18,9 @@ limitations under the License.
 package api
 
 import (
-	"fmt"
 	"net/url"
 	"time"
 
-	"github.com/apache/incubator-devlake/core/dal"
 	"github.com/apache/incubator-devlake/core/errors"
 	"github.com/apache/incubator-devlake/core/models/domainlayer"
 	"github.com/apache/incubator-devlake/core/models/domainlayer/code"
@@ -34,11 +32,9 @@ import (
 	helper "github.com/apache/incubator-devlake/helpers/pluginhelper/api"
 	"github.com/apache/incubator-devlake/plugins/bitbucket/models"
 	"github.com/apache/incubator-devlake/plugins/bitbucket/tasks"
-	"github.com/go-playground/validator/v10"
 )
 
 func MakeDataSourcePipelinePlanV200(subtaskMetas []plugin.SubTaskMeta, connectionId uint64, bpScopes []*plugin.BlueprintScopeV200, syncPolicy *plugin.BlueprintSyncPolicy) (plugin.PipelinePlan, []plugin.Scope, errors.Error) {
-	connectionHelper := helper.NewConnectionHelper(basicRes, validator.New())
 	// get the connection info for url
 	connection := &models.BitbucketConnection{}
 	err := connectionHelper.FirstById(connection, connectionId)
@@ -66,23 +62,14 @@ func makeDataSourcePipelinePlanV200(
 	connection *models.BitbucketConnection,
 	syncPolicy *plugin.BlueprintSyncPolicy,
 ) (plugin.PipelinePlan, errors.Error) {
-	var err errors.Error
 	for i, bpScope := range bpScopes {
 		stage := plan[i]
 		if stage == nil {
 			stage = plugin.PipelineStage{}
 		}
-		repo := &models.BitbucketRepo{}
-		// get repo from db
-		err = basicRes.GetDal().First(repo, dal.Where(`connection_id = ? AND bitbucket_id = ?`, connection.ID, bpScope.Id))
+		// get repo and scope config from db
+		repo, scopeConfig, err := scopeHelper.DbHelper().GetScopeAndConfig(connection.ID, bpScope.Id)
 		if err != nil {
-			return nil, errors.Default.Wrap(err, fmt.Sprintf("fail to find repo %s", bpScope.Id))
-		}
-		scopeConfig := &models.BitbucketScopeConfig{}
-		// get scope configs from db
-		db := basicRes.GetDal()
-		err = db.First(scopeConfig, dal.Where(`id = ?`, repo.ScopeConfigId))
-		if err != nil && !db.IsErrorNotFound(err) {
 			return nil, err
 		}
 		// refdiff
@@ -130,7 +117,7 @@ func makeDataSourcePipelinePlanV200(
 		}
 
 		// add gitex stage
-		if utils.StringsContains(bpScope.Entities, plugin.DOMAIN_TYPE_CODE) {
+		if utils.StringsContains(scopeConfig.Entities, plugin.DOMAIN_TYPE_CODE) {
 			cloneUrl, err := errors.Convert01(url.Parse(repo.CloneUrl))
 			if err != nil {
 				return nil, err
@@ -140,6 +127,7 @@ func makeDataSourcePipelinePlanV200(
 				Plugin: "gitextractor",
 				Options: map[string]interface{}{
 					"url":    cloneUrl.String(),
+					"name":   repo.BitbucketId,
 					"repoId": didgen.NewDomainIdGenerator(&models.BitbucketRepo{}).Generate(connection.ID, repo.BitbucketId),
 					"proxy":  connection.Proxy,
 				},
@@ -154,41 +142,39 @@ func makeDataSourcePipelinePlanV200(
 func makeScopesV200(bpScopes []*plugin.BlueprintScopeV200, connection *models.BitbucketConnection) ([]plugin.Scope, errors.Error) {
 	scopes := make([]plugin.Scope, 0)
 	for _, bpScope := range bpScopes {
-		repo := &models.BitbucketRepo{}
-		// get repo from db
-		err := basicRes.GetDal().First(repo, dal.Where(`connection_id = ? AND bitbucket_id = ?`, connection.ID, bpScope.Id))
+		repo, scopeConfig, err := scopeHelper.DbHelper().GetScopeAndConfig(connection.ID, bpScope.Id)
 		if err != nil {
-			return nil, errors.Default.Wrap(err, fmt.Sprintf("fail to find repo%s", bpScope.Id))
+			return nil, err
 		}
-		if utils.StringsContains(bpScope.Entities, plugin.DOMAIN_TYPE_CODE_REVIEW) ||
-			utils.StringsContains(bpScope.Entities, plugin.DOMAIN_TYPE_CODE) ||
-			utils.StringsContains(bpScope.Entities, plugin.DOMAIN_TYPE_CROSS) {
+		if utils.StringsContains(scopeConfig.Entities, plugin.DOMAIN_TYPE_CODE_REVIEW) ||
+			utils.StringsContains(scopeConfig.Entities, plugin.DOMAIN_TYPE_CODE) ||
+			utils.StringsContains(scopeConfig.Entities, plugin.DOMAIN_TYPE_CROSS) {
 			// if we don't need to collect gitex, we need to add repo to scopes here
 			scopeRepo := &code.Repo{
 				DomainEntity: domainlayer.DomainEntity{
 					Id: didgen.NewDomainIdGenerator(&models.BitbucketRepo{}).Generate(connection.ID, repo.BitbucketId),
 				},
-				Name: repo.Name,
+				Name: repo.BitbucketId,
 			}
 			scopes = append(scopes, scopeRepo)
 		}
 		// add cicd_scope to scopes
-		if utils.StringsContains(bpScope.Entities, plugin.DOMAIN_TYPE_CICD) {
+		if utils.StringsContains(scopeConfig.Entities, plugin.DOMAIN_TYPE_CICD) {
 			scopeCICD := &devops.CicdScope{
 				DomainEntity: domainlayer.DomainEntity{
 					Id: didgen.NewDomainIdGenerator(&models.BitbucketRepo{}).Generate(connection.ID, repo.BitbucketId),
 				},
-				Name: repo.Name,
+				Name: repo.BitbucketId,
 			}
 			scopes = append(scopes, scopeCICD)
 		}
 		// add board to scopes
-		if utils.StringsContains(bpScope.Entities, plugin.DOMAIN_TYPE_TICKET) {
+		if utils.StringsContains(scopeConfig.Entities, plugin.DOMAIN_TYPE_TICKET) {
 			scopeTicket := &ticket.Board{
 				DomainEntity: domainlayer.DomainEntity{
 					Id: didgen.NewDomainIdGenerator(&models.BitbucketRepo{}).Generate(connection.ID, repo.BitbucketId),
 				},
-				Name: repo.Name,
+				Name: repo.BitbucketId,
 			}
 			scopes = append(scopes, scopeTicket)
 		}

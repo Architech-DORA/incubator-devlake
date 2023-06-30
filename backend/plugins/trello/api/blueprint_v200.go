@@ -18,11 +18,10 @@ limitations under the License.
 package api
 
 import (
-	"fmt"
-	"github.com/apache/incubator-devlake/core/dal"
+	"time"
+
 	"github.com/apache/incubator-devlake/core/models/domainlayer"
 	"github.com/apache/incubator-devlake/core/models/domainlayer/ticket"
-	"time"
 
 	"github.com/apache/incubator-devlake/plugins/trello/models"
 
@@ -53,16 +52,12 @@ func makeScopeV200(connectionId uint64, scopes []*plugin.BlueprintScopeV200) ([]
 	sc := make([]plugin.Scope, 0, len(scopes))
 
 	for _, scope := range scopes {
-		trelloBoard := &models.TrelloBoard{}
-		// get board from db
-		err := basicRes.GetDal().First(trelloBoard,
-			dal.Where(`connection_id = ? and board_id = ?`,
-				connectionId, scope.Id))
+		trelloBoard, scopeConfig, err := scopeHelper.DbHelper().GetScopeAndConfig(connectionId, scope.Id)
 		if err != nil {
-			return nil, errors.Default.Wrap(err, fmt.Sprintf("fail to find board %s", scope.Id))
+			return nil, err
 		}
 		// add board to scopes
-		if utils.StringsContains(scope.Entities, plugin.DOMAIN_TYPE_TICKET) {
+		if utils.StringsContains(scopeConfig.Entities, plugin.DOMAIN_TYPE_TICKET) {
 			domainBoard := &ticket.Board{
 				DomainEntity: domainlayer.DomainEntity{
 					Id: didgen.NewDomainIdGenerator(&models.TrelloConnection{}).Generate(trelloBoard.ConnectionId, trelloBoard.BoardId),
@@ -91,8 +86,12 @@ func makePipelinePlanV200(subtaskMetas []plugin.SubTaskMeta, plan plugin.Pipelin
 			options["timeAfter"] = syncPolicy.TimeAfter.Format(time.RFC3339)
 		}
 
+		_, scopeConfig, err := scopeHelper.DbHelper().GetScopeAndConfig(connectionId, scope.Id)
+		if err != nil {
+			return nil, err
+		}
 		// construct subtasks
-		subtasks, err := helper.MakePipelinePlanSubtasks(subtaskMetas, scope.Entities)
+		subtasks, err := helper.MakePipelinePlanSubtasks(subtaskMetas, scopeConfig.Entities)
 		if err != nil {
 			return nil, err
 		}

@@ -27,17 +27,22 @@ import (
 	"github.com/apache/incubator-devlake/plugins/gitlab/models"
 )
 
+func init() {
+	RegisterSubtaskMeta(&ExtractApiMergeRequestDetailsMeta)
+}
+
 var ExtractApiMergeRequestDetailsMeta = plugin.SubTaskMeta{
 	Name:             "extractApiMergeRequestDetails",
 	EntryPoint:       ExtractApiMergeRequestDetails,
 	EnabledByDefault: true,
 	Description:      "Extract raw merge request Details data into tool layer table GitlabMergeRequest and GitlabReviewer",
 	DomainTypes:      []string{plugin.DOMAIN_TYPE_CODE_REVIEW},
+	Dependencies:     []*plugin.SubTaskMeta{&ExtractApiCommitsMeta},
 }
 
 func ExtractApiMergeRequestDetails(taskCtx plugin.SubTaskContext) errors.Error {
 	rawDataSubTaskArgs, data := CreateRawDataSubTaskArgs(taskCtx, RAW_MERGE_REQUEST_DETAIL_TABLE)
-	config := data.Options.GitlabTransformationRule
+	config := data.Options.ScopeConfig
 	var labelTypeRegex *regexp.Regexp
 	var labelComponentRegex *regexp.Regexp
 	var prType = config.PrType

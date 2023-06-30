@@ -23,7 +23,7 @@ from typing import Tuple, Dict, Iterable, Generator
 import sqlalchemy.sql as sql
 from sqlmodel import Session, select
 
-from pydevlake.model import RawModel, ToolModel, DomainModel, SubtaskRun
+from pydevlake.model import RawModel, ToolModel, DomainModel, SubtaskRun, raw_data_params
 from pydevlake.context import Context
 from pydevlake.message import RemoteProgress
 from pydevlake import logger
@@ -127,10 +127,11 @@ class Subtask:
         return {}
 
     def _params(self, ctx: Context) -> str:
-        return json.dumps({
-            "connection_id": ctx.connection.id,
-            "scope_id": ctx.scope.id
-        }, separators=(',', ':'))
+        return raw_data_params(ctx.connection.id, ctx.scope.id)
+
+    @abstractmethod
+    def delete(self, session, ctx):
+        pass
 
 
 class Collector(Subtask):
@@ -157,7 +158,9 @@ class Collector(Subtask):
 
 class SubstreamCollector(Collector):
     def fetch(self, state: Dict, session, ctx: Context):
-        for parent in session.exec(sql.select(self.stream.parent_stream.tool_model)).scalars():
+        parent_model = self.stream.parent_stream.tool_model
+        query = session.query(parent_model).where(parent_model.raw_data_params == self._params(ctx))
+        for parent in query.all():
             yield from self.stream.collect(state, ctx, parent)
 
 
@@ -179,7 +182,8 @@ class Extractor(Subtask):
         session.merge(tool_model)
 
     def delete(self, session, ctx):
-        pass
+        model = self.stream.tool_model
+        session.execute(sql.delete(model).where(model.raw_data_params == self._params(ctx)))
 
 class Convertor(Subtask):
     @property

@@ -48,6 +48,7 @@ func ConvertTask(taskCtx plugin.SubTaskContext) errors.Error {
 	}
 	defer cursor.Close()
 	taskIdGen := didgen.NewDomainIdGenerator(&models.TapdTask{})
+	storyIdGen := didgen.NewDomainIdGenerator(&models.TapdStory{})
 	converter, err := helper.NewDataConverter(helper.DataConverterArgs{
 		RawDataSubTaskArgs: *rawDataSubTaskArgs,
 		InputRowType:       reflect.TypeOf(models.TapdTask{}),
@@ -69,19 +70,25 @@ func ConvertTask(taskCtx plugin.SubTaskContext) errors.Error {
 				ResolutionDate: (*time.Time)(toolL.Completed),
 				CreatedDate:    (*time.Time)(toolL.Created),
 				UpdatedDate:    (*time.Time)(toolL.Modified),
-				ParentIssueId:  taskIdGen.Generate(toolL.ConnectionId, toolL.StoryId),
+				ParentIssueId:  storyIdGen.Generate(toolL.ConnectionId, toolL.StoryId),
 				Priority:       toolL.Priority,
 				CreatorId:      getAccountIdGen().Generate(data.Options.ConnectionId, toolL.Creator),
 				CreatorName:    toolL.Creator,
 				AssigneeName:   toolL.Owner,
 			}
+			var results []interface{}
 			if domainL.AssigneeName != "" {
 				domainL.AssigneeId = getAccountIdGen().Generate(data.Options.ConnectionId, toolL.Owner)
+				issueAssignee := &ticket.IssueAssignee{
+					IssueId:      domainL.Id,
+					AssigneeId:   domainL.AssigneeId,
+					AssigneeName: domainL.AssigneeName,
+				}
+				results = append(results, issueAssignee)
 			}
 			if domainL.ResolutionDate != nil && domainL.CreatedDate != nil {
 				domainL.LeadTimeMinutes = int64(domainL.ResolutionDate.Sub(*domainL.CreatedDate).Minutes())
 			}
-			results := make([]interface{}, 0, 2)
 			boardIssue := &ticket.BoardIssue{
 				BoardId: getWorkspaceIdGen().Generate(toolL.ConnectionId, toolL.WorkspaceId),
 				IssueId: domainL.Id,

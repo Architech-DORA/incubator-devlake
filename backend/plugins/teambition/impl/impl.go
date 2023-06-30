@@ -19,6 +19,8 @@ package impl
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/apache/incubator-devlake/core/context"
 	"github.com/apache/incubator-devlake/core/dal"
 	"github.com/apache/incubator-devlake/core/errors"
@@ -28,15 +30,18 @@ import (
 	"github.com/apache/incubator-devlake/plugins/teambition/models"
 	"github.com/apache/incubator-devlake/plugins/teambition/models/migrationscripts"
 	"github.com/apache/incubator-devlake/plugins/teambition/tasks"
-	"time"
 )
 
 // make sure interface is implemented
-var _ plugin.PluginMeta = (*Teambition)(nil)
-var _ plugin.PluginInit = (*Teambition)(nil)
-var _ plugin.PluginTask = (*Teambition)(nil)
-var _ plugin.PluginApi = (*Teambition)(nil)
-var _ plugin.CloseablePluginTask = (*Teambition)(nil)
+
+var _ interface {
+	plugin.PluginMeta
+	plugin.PluginInit
+	plugin.PluginTask
+	plugin.PluginApi
+	plugin.CloseablePluginTask
+	plugin.PluginSource
+} = (*Teambition)(nil)
 
 type Teambition struct{}
 
@@ -44,8 +49,13 @@ func (p Teambition) Description() string {
 	return "collect some Teambition data"
 }
 
+func (p Teambition) Name() string {
+	return "teambition"
+}
+
 func (p Teambition) Init(br context.BasicRes) errors.Error {
-	api.Init(br)
+	api.Init(br, p)
+
 	return nil
 }
 
@@ -60,7 +70,21 @@ func (p Teambition) GetTablesInfo() []dal.Tabler {
 		&models.TeambitionTaskActivity{},
 		&models.TeambitionTaskWorktime{},
 		&models.TeambitionProject{},
+		&models.TeambitionTaskFlowStatus{},
+		&models.TeambitionTaskScenario{},
 	}
+}
+
+func (p Teambition) Connection() dal.Tabler {
+	return &models.TeambitionConnection{}
+}
+
+func (p Teambition) Scope() plugin.ToolLayerScope {
+	return nil
+}
+
+func (p Teambition) ScopeConfig() dal.Tabler {
+	return nil
 }
 
 func (p Teambition) SubTaskMetas() []plugin.SubTaskMeta {
@@ -106,6 +130,7 @@ func (p Teambition) PrepareTaskData(taskCtx plugin.TaskContext, options map[stri
 	connectionHelper := helper.NewConnectionHelper(
 		taskCtx,
 		nil,
+		p.Name(),
 	)
 	connection := &models.TeambitionConnection{}
 	err = connectionHelper.FirstById(connection, op.ConnectionId)

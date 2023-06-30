@@ -18,16 +18,17 @@ limitations under the License.
 package api
 
 import (
+	"net/http"
+
 	"github.com/apache/incubator-devlake/core/context"
 	"github.com/apache/incubator-devlake/core/errors"
 	"github.com/apache/incubator-devlake/core/plugin"
 	"github.com/go-playground/validator/v10"
-	"net/http"
 )
 
 type (
 	// ScopeApiHelper is used to write the CURD of scopes
-	ScopeApiHelper[Conn any, Scope any, Tr any] struct {
+	ScopeApiHelper[Conn any, Scope plugin.ToolLayerScope, Tr any] struct {
 		*GenericScopeApiHelper[Conn, Scope, Tr]
 	}
 	ScopeReq[T any] struct {
@@ -36,7 +37,7 @@ type (
 )
 
 // NewScopeHelper creates a ScopeHelper for scopes management
-func NewScopeHelper[Conn any, Scope any, Tr any](
+func NewScopeHelper[Conn any, Scope plugin.ToolLayerScope, Tr any](
 	basicRes context.BasicRes,
 	vld *validator.Validate,
 	connHelper *ConnectionApiHelper,
@@ -94,9 +95,9 @@ func (c *ScopeApiHelper[Conn, Scope, Tr]) GetScope(input *plugin.ApiResourceInpu
 }
 
 func (c *ScopeApiHelper[Conn, Scope, Tr]) Delete(input *plugin.ApiResourceInput) (*plugin.ApiResourceOutput, errors.Error) {
-	err := c.DeleteScope(input)
+	refs, err := c.DeleteScope(input)
 	if err != nil {
-		return nil, err
+		return &plugin.ApiResourceOutput{Body: refs, Status: err.GetType().GetHttpCode()}, nil
 	}
 	return &plugin.ApiResourceOutput{Body: nil, Status: http.StatusOK}, nil
 }

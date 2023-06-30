@@ -16,50 +16,70 @@
  *
  */
 
-import { useState } from 'react';
-import { useParams, useHistory } from 'react-router-dom';
-import { Button, Icon, Intent } from '@blueprintjs/core';
+import { useState, useEffect, useMemo } from 'react';
+import { useParams, useHistory, Link } from 'react-router-dom';
+import { Button, Intent } from '@blueprintjs/core';
 
-import { PageHeader, Dialog, IconButton, Table } from '@/components';
-import { transformEntities } from '@/config';
+import { PageHeader, Buttons, Dialog, IconButton, Table, Message, toast } from '@/components';
 import { useTips, useConnections, useRefreshData } from '@/hooks';
-import { ConnectionForm, ConnectionStatus, DataScopeForm2 } from '@/plugins';
+import ClearImg from '@/images/icons/clear.svg';
+import {
+  ConnectionForm,
+  ConnectionStatus,
+  DataScopeSelectRemote,
+  getPluginConfig,
+  getPluginScopeId,
+  ScopeConfigForm,
+  ScopeConfigSelect,
+} from '@/plugins';
 import { operator } from '@/utils';
 
 import * as API from './api';
 import * as S from './styled';
 
+export const ConnectionDetailPage = () => {
+  const { plugin, id } = useParams<{ plugin: string; id: string }>();
+  return <ConnectionDetail plugin={plugin} connectionId={+id} />;
+};
+
 interface Props {
   plugin: string;
-  id: ID;
+  connectionId: ID;
 }
 
-const ConnectionDetail = ({ plugin, id }: Props) => {
-  const [type, setType] = useState<'deleteConnection' | 'updateConnection' | 'createDataScope'>();
+const ConnectionDetail = ({ plugin, connectionId }: Props) => {
+  const [type, setType] = useState<
+    | 'deleteConnection'
+    | 'updateConnection'
+    | 'createDataScope'
+    | 'clearDataScope'
+    | 'deleteDataScope'
+    | 'associateScopeConfig'
+    | 'deleteConnectionFailed'
+    | 'deleteDataScopeFailed'
+  >();
   const [operating, setOperating] = useState(false);
   const [version, setVersion] = useState(1);
+  const [scopeId, setScopeId] = useState<ID>();
+  const [scopeIds, setScopeIds] = useState<ID[]>([]);
+  const [scopeConfigId, setScopeConfigId] = useState<ID>();
+  const [conflict, setConflict] = useState<string[]>([]);
 
   const history = useHistory();
   const { onGet, onTest, onRefresh } = useConnections();
   const { setTips } = useTips();
-  const { ready, data } = useRefreshData(() => API.getDataScope(plugin, id), [version]);
+  const { ready, data } = useRefreshData(() => API.getDataScopes(plugin, connectionId), [version]);
 
-  const { unique, status, name, icon, entities } = onGet(`${plugin}-${id}`);
+  const { unique, status, name, icon } = onGet(`${plugin}-${connectionId}`) || {};
+
+  const pluginConfig = useMemo(() => getPluginConfig(plugin), [plugin]);
+
+  useEffect(() => {
+    onTest(`${plugin}-${connectionId}`);
+  }, [plugin, connectionId]);
 
   const handleHideDialog = () => {
     setType(undefined);
-  };
-
-  const handleShowTips = () => {
-    setTips(
-      <div>
-        <Icon icon="warning-sign" style={{ marginRight: 8 }} color="#F4BE55" />
-        <span>
-          The transformation of certain data scope has been updated. If you would like to re-transform the data in the
-          related project(s), please go to the Project page and do so.
-        </span>
-      </div>,
-    );
   };
 
   const handleShowDeleteDialog = () => {
@@ -67,13 +87,35 @@ const ConnectionDetail = ({ plugin, id }: Props) => {
   };
 
   const handleDelete = async () => {
-    const [success] = await operator(() => API.deleteConnection(plugin, id), {
-      setOperating,
-      formatMessage: () => 'Delete Connection Successful.',
-    });
+    const [, res] = await operator(
+      async () => {
+        try {
+          await API.deleteConnection(plugin, connectionId);
+          return { status: 'success' };
+        } catch (err: any) {
+          const { status, data } = err.response;
+          return {
+            status: status === 409 ? 'conflict' : 'error',
+            conflict: data ? [...data.projects, ...data.blueprints] : [],
+          };
+        }
+      },
+      {
+        setOperating,
+        hideToast: true,
+      },
+    );
 
-    if (success) {
+    if (res.status === 'success') {
+      toast.success('Delete Connection Successful.');
+      onRefresh(plugin);
       history.push('/connections');
+    } else if (res.status === 'conflict') {
+      setType('deleteConnectionFailed');
+      setConflict(res.conflict);
+    } else {
+      toast.error('Operation failed.');
+      handleHideDialog();
     }
   };
 
@@ -92,8 +134,84 @@ const ConnectionDetail = ({ plugin, id }: Props) => {
 
   const handleCreateDataScope = () => {
     setVersion((v) => v + 1);
-    handleShowTips();
     handleHideDialog();
+  };
+
+  const handleShowClearDataScopeDialog = (scopeId: ID) => {
+    setType('clearDataScope');
+    setScopeId(scopeId);
+  };
+
+  const handleShowDeleteDataScopeDialog = (scopeId: ID) => {
+    setType('deleteDataScope');
+    setScopeId(scopeId);
+  };
+
+  const handleDeleteDataScope = async (onlyData: boolean) => {
+    if (!scopeId) return;
+
+    const [, res] = await operator(
+      async () => {
+        try {
+          await API.deleteDataScope(plugin, connectionId, scopeId, onlyData);
+          return { status: 'success' };
+        } catch (err: any) {
+          const { status, data } = err.response;
+          return { status: status === 409 ? 'conflict' : 'error', conflict: [...data.projects, ...data.blueprints] };
+        }
+      },
+      {
+        setOperating,
+        hideToast: true,
+      },
+    );
+
+    if (res.status === 'success') {
+      setVersion((v) => v + 1);
+      toast.success(onlyData ? 'Clear historical data successful.' : 'Delete Data Scope successful.');
+      handleHideDialog();
+    } else if (res.status === 'conflict') {
+      setType('deleteDataScopeFailed');
+      setConflict(res.conflict);
+    } else {
+      toast.error('Operation failed.');
+      handleHideDialog();
+    }
+  };
+
+  const handleShowScopeConfigSelectDialog = (scopeIds: ID[]) => {
+    setType('associateScopeConfig');
+    setScopeIds(scopeIds);
+  };
+
+  const handleAssociateScopeConfig = async (trId: ID) => {
+    const [success] = await operator(
+      () =>
+        Promise.all(
+          scopeIds.map(async (scopeId) => {
+            const scope = await API.getDataScope(plugin, connectionId, scopeId);
+            return API.updateDataScope(plugin, connectionId, scopeId, {
+              ...scope,
+              scopeConfigId: +trId,
+            });
+          }),
+        ),
+      {
+        setOperating,
+        formatMessage: () => `Associate scope config successful.`,
+      },
+    );
+
+    if (success) {
+      setVersion((v) => v + 1);
+      setTips(
+        <Message
+          content="Scope Config(s) have been updated. If you would like to re-transform or re-collect the data in the related
+        project(s), please go to the Project page and do so."
+        />,
+      );
+      handleHideDialog();
+    }
   };
 
   return (
@@ -106,28 +224,25 @@ const ConnectionDetail = ({ plugin, id }: Props) => {
     >
       <S.Wrapper>
         <div className="top">
-          <div className="entities">
-            <h3>Data Entities</h3>
-            <span>
-              {transformEntities(entities)
-                .map((it) => it.label)
-                .join(',')}
-            </span>
-          </div>
+          <div>Please note: In order to view DORA metrics, you will need to add Scope Configs.</div>
           <div className="authentication">
-            <h3>
-              <span>Authentication</span>
-              <IconButton icon="annotation" tooltip="Edit Connection" onClick={handleShowUpdateDialog} />
-            </h3>
-            <span>Status: </span>
-            <span>
-              Status: <ConnectionStatus status={status} unique={unique} onTest={onTest} />
-            </span>
+            <span style={{ marginRight: 4 }}>Authentication Status:</span>
+            <ConnectionStatus status={status} unique={unique} onTest={onTest} />
+            <IconButton icon="annotation" tooltip="Edit Connection" onClick={handleShowUpdateDialog} />
           </div>
         </div>
-        <div className="action">
+        <Buttons>
           <Button intent={Intent.PRIMARY} icon="add" text="Add Data Scope" onClick={handleShowCreateDataScopeDialog} />
-        </div>
+          {plugin !== 'tapd' && pluginConfig.scopeConfig && (
+            <Button
+              disabled={!scopeIds.length}
+              intent={Intent.PRIMARY}
+              icon="many-to-one"
+              text="Associate Scope Config"
+              onClick={() => handleShowScopeConfigSelectDialog(scopeIds)}
+            />
+          )}
+        </Buttons>
         <Table
           loading={!ready}
           columns={[
@@ -136,6 +251,68 @@ const ConnectionDetail = ({ plugin, id }: Props) => {
               dataIndex: 'name',
               key: 'name',
             },
+            {
+              title: 'Project',
+              dataIndex: 'blueprints',
+              key: 'project',
+              render: (blueprints) => (
+                <>
+                  {blueprints?.length ? (
+                    <ul>
+                      {blueprints.map((bp: any, i: number) =>
+                        bp.projectName ? (
+                          <li key={bp.projectName}>
+                            <Link to={`/projects/${bp.projectName}`}>{bp.projectName}</Link>
+                          </li>
+                        ) : null,
+                      )}
+                    </ul>
+                  ) : (
+                    '-'
+                  )}
+                </>
+              ),
+            },
+            {
+              title: 'Scope Config',
+              dataIndex: 'scopeConfig',
+              key: 'scopeConfig',
+              width: 400,
+              render: (_, row) => (
+                <>
+                  <span>{row.scopeConfigId ? row.scopeConfig?.name : 'N/A'}</span>
+                  {pluginConfig.scopeConfig && (
+                    <IconButton
+                      icon="link"
+                      tooltip="Associate Scope Config"
+                      onClick={() => {
+                        handleShowScopeConfigSelectDialog([getPluginScopeId(plugin, row)]);
+                        setScopeConfigId(row.scopeConfigId);
+                      }}
+                    />
+                  )}
+                </>
+              ),
+            },
+            {
+              title: '',
+              key: 'id',
+              width: 100,
+              render: (_, row) => (
+                <>
+                  <IconButton
+                    image={<img src={ClearImg} alt="clear" />}
+                    tooltip="Clear historical data"
+                    onClick={() => handleShowClearDataScopeDialog(getPluginScopeId(plugin, row))}
+                  />
+                  <IconButton
+                    icon="trash"
+                    tooltip="Delete Data Scope"
+                    onClick={() => handleShowDeleteDataScopeDialog(getPluginScopeId(plugin, row))}
+                  />
+                </>
+              ),
+            },
           ]}
           dataSource={data}
           noData={{
@@ -143,24 +320,27 @@ const ConnectionDetail = ({ plugin, id }: Props) => {
             btnText: 'Add Data Scope',
             onCreate: handleShowCreateDataScopeDialog,
           }}
+          rowSelection={{
+            getRowKey: (row) => getPluginScopeId(plugin, row),
+            selectedRowKeys: scopeIds,
+            onChange: (selectedRowKeys) => setScopeIds(selectedRowKeys),
+          }}
         />
       </S.Wrapper>
       {type === 'deleteConnection' && (
         <Dialog
           isOpen
+          style={{ width: 820 }}
           title="Would you like to delete this Data Connection?"
           okText="Confirm"
           okLoading={operating}
           onCancel={handleHideDialog}
           onOk={handleDelete}
         >
-          <S.DialogBody>
-            <Icon icon="warning-sign" />
-            <span>
-              This operation cannot be undone. Deleting a Data Connection will delete all data that have been collected
-              in this Connection.
-            </span>
-          </S.DialogBody>
+          <Message
+            content=" This operation cannot be undone. Deleting a Data Connection will delete all data that have been collected
+              in this Connection."
+          />
         </Dialog>
       )}
       {type === 'updateConnection' && (
@@ -176,7 +356,7 @@ const ConnectionDetail = ({ plugin, id }: Props) => {
           }
           onCancel={handleHideDialog}
         >
-          <ConnectionForm plugin={plugin} connectionId={id} onSuccess={handleUpdate} />
+          <ConnectionForm plugin={plugin} connectionId={connectionId} onSuccess={handleUpdate} />
         </Dialog>
       )}
       {type === 'createDataScope' && (
@@ -192,21 +372,118 @@ const ConnectionDetail = ({ plugin, id }: Props) => {
           }
           onCancel={handleHideDialog}
         >
-          <DataScopeForm2
+          <DataScopeSelectRemote
             plugin={plugin}
-            connectionId={id}
+            connectionId={connectionId}
             disabledScope={data}
             onCancel={handleHideDialog}
             onSubmit={handleCreateDataScope}
           />
         </Dialog>
       )}
+      {type === 'clearDataScope' && (
+        <Dialog
+          isOpen
+          style={{ width: 820 }}
+          title="Would you like to clear the historical data of the selected Data Scope?"
+          okText="Confirm"
+          okLoading={operating}
+          onCancel={handleHideDialog}
+          onOk={() => handleDeleteDataScope(true)}
+        >
+          <Message content="This operation cannot be undone." />
+        </Dialog>
+      )}
+      {type === 'deleteDataScope' && (
+        <Dialog
+          isOpen
+          style={{ width: 820 }}
+          title="Would you like to delete the selected Data Scope?"
+          okText="Confirm"
+          okLoading={operating}
+          onCancel={handleHideDialog}
+          onOk={() => handleDeleteDataScope(false)}
+        >
+          <Message
+            content="This operation cannot be undone. Deleting Data Scope will delete all data that have been collected in the
+              past."
+          />
+        </Dialog>
+      )}
+      {type === 'associateScopeConfig' && (
+        <Dialog isOpen style={{ width: 820 }} footer={null} title="Associate Scope Config" onCancel={handleHideDialog}>
+          {plugin === 'tapd' ? (
+            <ScopeConfigForm
+              plugin={plugin}
+              connectionId={connectionId}
+              scopeId={scopeIds[0]}
+              scopeConfigId={scopeConfigId}
+              onCancel={handleHideDialog}
+              onSubmit={handleAssociateScopeConfig}
+            />
+          ) : (
+            <ScopeConfigSelect
+              plugin={plugin}
+              connectionId={connectionId}
+              scopeConfigId={scopeConfigId}
+              onCancel={handleHideDialog}
+              onSubmit={handleAssociateScopeConfig}
+            />
+          )}
+        </Dialog>
+      )}
+      {type === 'deleteConnectionFailed' && (
+        <Dialog
+          isOpen
+          style={{ width: 820 }}
+          footer={null}
+          title={`This Data Connection can not be deleted.`}
+          onCancel={handleHideDialog}
+        >
+          <S.DialogBody>
+            {!conflict.length ? (
+              <Message content="Please delete all data scope(s) before you delete this Data Connection." />
+            ) : (
+              <>
+                <Message
+                  content={`This Data Connection can not be deleted because it has been used in the following projects/blueprints:`}
+                />
+                <ul>
+                  {conflict.map((it) => (
+                    <li>{it}</li>
+                  ))}
+                </ul>
+              </>
+            )}
+            <Buttons position="bottom" align="right">
+              <Button intent={Intent.PRIMARY} text="OK" onClick={handleHideDialog} />
+            </Buttons>
+          </S.DialogBody>
+        </Dialog>
+      )}
+      {type === 'deleteDataScopeFailed' && (
+        <Dialog
+          isOpen
+          style={{ width: 820 }}
+          footer={null}
+          title={`This Data Scope can not be deleted.`}
+          onCancel={handleHideDialog}
+        >
+          <S.DialogBody>
+            <Message
+              content={`This Data Scope can not be deleted because it has been used in the following projects/blueprints:`}
+            />
+            <ul>
+              {conflict.map((it) => (
+                <li>{it}</li>
+              ))}
+            </ul>
+            <Buttons position="bottom" align="right">
+              <Button intent={Intent.PRIMARY} text="OK" onClick={handleHideDialog} />
+            </Buttons>
+          </S.DialogBody>
+        </Dialog>
+      )}
     </PageHeader>
   );
-};
-
-export const ConnectionDetailPage = () => {
-  const { plugin, id } = useParams<{ plugin: string; id: string }>();
-
-  return <ConnectionDetail plugin={plugin} id={+id} />;
 };

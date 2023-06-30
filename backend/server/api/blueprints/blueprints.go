@@ -168,9 +168,10 @@ func Patch(c *gin.Context) {
 // @Tags framework/blueprints
 // @Accept application/json
 // @Param blueprintId path string true "blueprintId"
-// @Success 200  {object} models.Pipeline
-// @Failure 400  {object} shared.ApiBody "Bad Request"
-// @Failure 500  {object} shared.ApiBody "Internal Error"
+// @Param skipCollectors body bool false "skipCollectors"
+// @Success 200 {object} models.Pipeline
+// @Failure 400 {object} shared.ApiBody "Bad Request"
+// @Failure 500 {object} shared.ApiBody "Internal Error"
 // @Router /blueprints/{blueprintId}/trigger [Post]
 func Trigger(c *gin.Context) {
 	blueprintId := c.Param("blueprintId")
@@ -179,7 +180,17 @@ func Trigger(c *gin.Context) {
 		shared.ApiOutputError(c, errors.BadInput.Wrap(err, "bad blueprintID format supplied"))
 		return
 	}
-	pipeline, err := services.TriggerBlueprint(id)
+
+	var body struct {
+		SkipCollectors bool `json:"skipCollectors"`
+	}
+	err = c.ShouldBindJSON(&body)
+	if err != nil {
+		shared.ApiOutputError(c, errors.BadInput.Wrap(err, "error binding request body"))
+		return
+	}
+
+	pipeline, err := services.TriggerBlueprint(id, body.SkipCollectors)
 	if err != nil {
 		shared.ApiOutputError(c, errors.Default.Wrap(err, "error triggering blueprint"))
 		return

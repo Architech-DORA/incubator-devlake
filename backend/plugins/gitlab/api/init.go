@@ -19,6 +19,7 @@ package api
 
 import (
 	"github.com/apache/incubator-devlake/core/context"
+	"github.com/apache/incubator-devlake/core/plugin"
 	"github.com/apache/incubator-devlake/helpers/pluginhelper/api"
 	"github.com/apache/incubator-devlake/plugins/gitlab/models"
 	"github.com/go-playground/validator/v10"
@@ -26,27 +27,30 @@ import (
 
 var vld *validator.Validate
 var connectionHelper *api.ConnectionApiHelper
-var scopeHelper *api.ScopeApiHelper[models.GitlabConnection, models.GitlabProject, models.GitlabTransformationRule]
+var scopeHelper *api.ScopeApiHelper[models.GitlabConnection, models.GitlabProject, models.GitlabScopeConfig]
 var remoteHelper *api.RemoteApiHelper[models.GitlabConnection, models.GitlabProject, models.GitlabApiProject, models.GroupResponse]
 var basicRes context.BasicRes
-var trHelper *api.TransformationRuleHelper[models.GitlabTransformationRule]
+var scHelper *api.ScopeConfigHelper[models.GitlabScopeConfig]
 
-func Init(br context.BasicRes) {
+func Init(br context.BasicRes, p plugin.PluginMeta) {
+
 	basicRes = br
 	vld = validator.New()
 	connectionHelper = api.NewConnectionHelper(
 		basicRes,
 		vld,
+		p.Name(),
 	)
 	params := &api.ReflectionParameters{
 		ScopeIdFieldName:  "GitlabId",
 		ScopeIdColumnName: "gitlab_id",
+		RawScopeParamName: "ProjectId",
 	}
-	scopeHelper = api.NewScopeHelper[models.GitlabConnection, models.GitlabProject, models.GitlabTransformationRule](
+	scopeHelper = api.NewScopeHelper[models.GitlabConnection, models.GitlabProject, models.GitlabScopeConfig](
 		basicRes,
 		vld,
 		connectionHelper,
-		api.NewScopeDatabaseHelperImpl[models.GitlabConnection, models.GitlabProject, models.GitlabTransformationRule](
+		api.NewScopeDatabaseHelperImpl[models.GitlabConnection, models.GitlabProject, models.GitlabScopeConfig](
 			basicRes, connectionHelper, params),
 		params,
 		nil,
@@ -56,8 +60,9 @@ func Init(br context.BasicRes) {
 		vld,
 		connectionHelper,
 	)
-	trHelper = api.NewTransformationRuleHelper[models.GitlabTransformationRule](
+	scHelper = api.NewScopeConfigHelper[models.GitlabScopeConfig](
 		basicRes,
 		vld,
+		p.Name(),
 	)
 }

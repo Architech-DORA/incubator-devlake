@@ -15,14 +15,16 @@
 
 
 import os
+import json
 from typing import Iterable, Optional
 from inspect import getmodule
 from datetime import datetime
+from enum import Enum
 
 import inflect
-from pydantic import AnyUrl, validator
-from sqlalchemy import Column, DateTime
-from sqlalchemy.orm import declared_attr, Session
+from pydantic import AnyUrl, SecretStr, validator
+from sqlalchemy import Column, DateTime, Text
+from sqlalchemy.orm import declared_attr
 from sqlalchemy.inspection import inspect
 from sqlmodel import SQLModel, Field
 
@@ -39,6 +41,7 @@ class Model(SQLModel):
         sa_column=Column(DateTime(), default=datetime.utcnow, onupdate=datetime.utcnow)
     )
 
+
 class ToolTable(SQLModel):
     @declared_attr
     def __tablename__(cls) -> str:
@@ -48,6 +51,9 @@ class ToolTable(SQLModel):
 
     class Config:
         allow_population_by_field_name = True
+        json_encoders = {
+            SecretStr: lambda v: v.get_secret_value() if v else None
+        }
 
         @classmethod
         def alias_generator(cls, attr_name: str) -> str:
@@ -55,13 +61,6 @@ class ToolTable(SQLModel):
             # Useful for extractors dealing with raw data that has camelCased attributes.
             parts = attr_name.split('_')
             return parts[0] + ''.join(word.capitalize() for word in parts[1:])
-
-    @classmethod
-    def migrate(cls, session: Session):
-        """
-        Redefine this method to perform migration on this tool model.
-        """
-        pass
 
 
 class Connection(ToolTable, Model):
@@ -75,8 +74,18 @@ class Connection(ToolTable, Model):
         return proxy
 
 
-class TransformationRule(ToolTable, Model):
-    name: str
+class DomainType(Enum):
+    CODE = "CODE"
+    TICKET = "TICKET"
+    CODE_REVIEW = "CODEREVIEW"
+    CROSS = "CROSS"
+    CICD = "CICD"
+    CODE_QUALITY = "CODEQUALITY"
+
+
+class ScopeConfig(ToolTable, Model):
+    name: str = Field(default="default")
+    domain_types: list[DomainType] = Field(default=list(DomainType), alias="entities")
 
 
 class RawModel(SQLModel):
@@ -91,10 +100,10 @@ class RawModel(SQLModel):
 class RawDataOrigin(SQLModel):
     # SQLModel doesn't like attributes starting with _
     # so we change the names of the columns.
-    raw_data_params: Optional[str] = Field(sa_column_kwargs={'name':'_raw_data_params'})
-    raw_data_table: Optional[str] = Field(sa_column_kwargs={'name':'_raw_data_table'})
-    raw_data_id: Optional[str] = Field(sa_column_kwargs={'name':'_raw_data_id'})
-    raw_data_remark: Optional[str] = Field(sa_column_kwargs={'name':'_raw_data_remark'})
+    raw_data_params: Optional[str] = Field(sa_column_kwargs={'name': '_raw_data_params'}, alias='_raw_data_params')
+    raw_data_table: Optional[str] = Field(sa_column_kwargs={'name': '_raw_data_table'}, alias='_raw_data_table')
+    raw_data_id: Optional[str] = Field(sa_column_kwargs={'name': '_raw_data_id'}, alias='_raw_data_id')
+    raw_data_remark: Optional[str] = Field(sa_column_kwargs={'name': '_raw_data_remark'}, alias='_raw_data_remark')
 
     def set_raw_origin(self, raw: RawModel):
         self.raw_data_id = raw.id
@@ -159,6 +168,14 @@ def domain_id(model_type, connection_id, *args):
     return ':'.join(segments)
 
 
+def raw_data_params(connection_id: int, scope_id: str) -> str:
+    # JSON keys MUST follow the Go conventions (CamelCase) and be sorted
+    return json.dumps({
+        "ConnectionId": connection_id,
+        "ScopeId": scope_id
+    }, separators=(',', ':'))
+
+
 def _get_plugin_name(cls):
     """
     Get the plugin name from a class by looking into
@@ -173,6 +190,7 @@ def _get_plugin_name(cls):
 
 
 class SubtaskRun(SQLModel, table=True):
+    __tablename__ = '_pydevlake_subtask_runs'
     """
     Table storing information about the execution of subtasks.
     """
@@ -181,4 +199,4 @@ class SubtaskRun(SQLModel, table=True):
     connection_id: int
     started: datetime
     completed: Optional[datetime]
-    state: str # JSON encoded dict of atomic values
+    state: str = Field(sa_column=Column(Text))  # JSON encoded dict of atomic values

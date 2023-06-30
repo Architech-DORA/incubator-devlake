@@ -61,7 +61,7 @@ type GraphqlQueryIssue struct {
 	AssigneeList struct {
 		// FIXME now domain layer just support one assignee
 		Assignees []GraphqlInlineAccountQuery `graphql:"nodes"`
-	} `graphql:"assignees(first: 1)"`
+	} `graphql:"assignees(first: 100)"`
 	Milestone *struct {
 		Number int
 	} `json:"milestone"`
@@ -86,7 +86,7 @@ var _ plugin.SubTaskEntryPoint = CollectIssue
 func CollectIssue(taskCtx plugin.SubTaskContext) errors.Error {
 	db := taskCtx.GetDal()
 	data := taskCtx.GetData().(*githubTasks.GithubTaskData)
-	config := data.Options.GithubTransformationRule
+	config := data.Options.ScopeConfig
 	issueRegexes, err := githubTasks.NewIssueRegexes(config)
 	if err != nil {
 		return nil
@@ -170,6 +170,16 @@ func CollectIssue(taskCtx plugin.SubTaskContext) errors.Error {
 						return nil, err
 					}
 					results = append(results, relatedUser)
+				}
+				for _, assignee := range issue.AssigneeList.Assignees {
+					issueAssignee := &models.GithubIssueAssignee{
+						ConnectionId: githubIssue.ConnectionId,
+						IssueId:      githubIssue.GithubId,
+						RepoId:       githubIssue.RepoId,
+						AssigneeId:   assignee.Id,
+						AssigneeName: assignee.Login,
+					}
+					results = append(results, issueAssignee)
 				}
 			}
 			if isFinish {

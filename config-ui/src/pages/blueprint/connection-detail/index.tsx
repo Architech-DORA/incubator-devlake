@@ -21,10 +21,10 @@ import { useHistory, useParams } from 'react-router-dom';
 import { Button, Intent, Position } from '@blueprintjs/core';
 import { Popover2 } from '@blueprintjs/popover2';
 
-import { Dialog, PageHeader, PageLoading } from '@/components';
-import { EntitiesLabel } from '@/config';
-import { useRefreshData } from '@/hooks';
-import { DataScopeSelect, getPluginConfig, Transformation } from '@/plugins';
+import { PageLoading, PageHeader, ExternalLink, Buttons, Table, Dialog, Message } from '@/components';
+import { useRefreshData, useTips } from '@/hooks';
+import { DataScopeSelect, getPluginScopeId } from '@/plugins';
+import { operator } from '@/utils';
 
 import * as API from './api';
 import * as S from './styled';
@@ -32,116 +32,161 @@ import * as S from './styled';
 export const BlueprintConnectionDetailPage = () => {
   const [version, setVersion] = useState(1);
   const [isOpen, setIsOpen] = useState(false);
+  const [operating, setOperating] = useState(false);
 
-  const { pname, bid, unique } = useParams<{ pname?: string; bid: string; unique: string }>();
+  const { pname, bid, unique } = useParams<{ pname?: string; bid?: string; unique: string }>();
   const history = useHistory();
+
+  const { setTips } = useTips();
+
+  const getBlueprint = async (pname?: string, bid?: string) => {
+    if (pname) {
+      const res = await API.getProject(pname);
+      return res.blueprint;
+    }
+
+    return API.getBlueprint(bid as any);
+  };
 
   const { ready, data } = useRefreshData(async () => {
     const [plugin, connectionId] = unique.split('-');
-    const blueprint = await API.getBlueprint(bid);
-    const connection = await API.getConnection(plugin, connectionId);
-    const scope = blueprint.settings.connections.find(
-      (cs: any) => cs.plugin === plugin && cs.connectionId === +connectionId,
-    ).scopes;
-    const config = getPluginConfig(plugin);
-    const origin = await Promise.all(scope.map((sc: any) => API.getDataScope(plugin, connectionId, sc.id)));
+    const [blueprint, connection, scopes] = await Promise.all([
+      getBlueprint(pname, bid),
+      API.getConnection(plugin, connectionId),
+      API.getDataScopes(plugin, connectionId),
+    ]);
+
+    const scopeIds = blueprint.settings.connections
+      .find((cs: any) => cs.plugin === plugin && cs.connectionId === +connectionId)
+      .scopes.map((sc: any) => sc.id);
 
     return {
       blueprint,
-      bpName: blueprint.name,
-      csName: connection.name,
-      entities: scope[0].entities,
       connection: {
         unique,
         plugin,
-        connectionId: +connectionId,
+        id: +connectionId,
         name: connection.name,
-        icon: config.icon,
-        scope,
-        origin,
-        transformationType: config.transformationType,
       },
+      scopes: scopes.filter((sc: any) => scopeIds.includes(getPluginScopeId(plugin, sc))),
     };
-  }, [version]);
+  }, [version, pname, bid]);
 
   if (!ready || !data) {
     return <PageLoading />;
   }
 
-  const { blueprint, bpName, csName, entities, connection } = data;
+  const { blueprint, connection, scopes } = data;
 
   const handleShowDataScope = () => setIsOpen(true);
   const handleHideDataScope = () => setIsOpen(false);
 
-  const handleChangeDataScope = async (connections: MixConnection[]) => {
-    const [connection] = connections;
-    await API.updateBlueprint(blueprint.id, {
-      ...blueprint,
-      settings: {
-        ...blueprint.settings,
-        connections: blueprint.settings.connections.map((cs: any) => {
-          if (cs.plugin === connection.plugin && cs.connectionId === connection.connectionId) {
-            return {
-              ...cs,
-              scopes: connection.scope.map((sc: any) => ({
-                id: `${sc.id}`,
-                entities: sc.entities,
-              })),
-            };
-          }
-          return cs;
-        }),
-      },
+  const handleRunBP = async (skipCollectors: boolean) => {
+    const [success] = await operator(() => API.runBlueprint(blueprint.id, skipCollectors), {
+      setOperating,
+      formatMessage: () => 'Trigger blueprint successful.',
     });
-    setVersion((v) => v + 1);
+
+    if (success) {
+      history.push(pname ? `/projects/${pname}` : `/blueprints/${blueprint.id}`);
+    }
   };
 
-  const handleChangeTransformation = () => {
-    setVersion((v) => v + 1);
+  const handleShowTips = () => {
+    setTips(
+      <>
+        <Message content="The change of Data Scope(s) will affect the metrics of this project. Would you like to recollect the data to get them updated?" />
+        <Buttons style={{ marginLeft: 8, marginBottom: 0 }}>
+          <Button
+            loading={operating}
+            intent={Intent.PRIMARY}
+            text="Recollect All Data"
+            onClick={() => handleRunBP(false)}
+          />
+        </Buttons>
+      </>,
+    );
   };
 
   const handleRemoveConnection = async () => {
-    await API.updateBlueprint(blueprint.id, {
-      ...blueprint,
-      settings: {
-        ...blueprint.settings,
-        connections: blueprint.settings.connections.filter(
-          (cs: any) => !(cs.plugin === connection.plugin && cs.connectionId === connection.connectionId),
-        ),
+    const [success] = await operator(() =>
+      API.updateBlueprint(blueprint.id, {
+        ...blueprint,
+        settings: {
+          ...blueprint.settings,
+          connections: blueprint.settings.connections.filter(
+            (cs: any) => !(cs.plugin === connection.plugin && cs.connectionId === connection.id),
+          ),
+        },
+      }),
+    );
+
+    if (success) {
+      handleShowTips();
+      history.push(pname ? `/projects/${pname}` : `/blueprints/${blueprint.id}`);
+    }
+  };
+
+  const handleChangeDataScope = async (scope: any) => {
+    const [success] = await operator(
+      () =>
+        API.updateBlueprint(blueprint.id, {
+          ...blueprint,
+          settings: {
+            ...blueprint.settings,
+            connections: blueprint.settings.connections.map((cs: any) => {
+              if (cs.plugin === connection.plugin && cs.connectionId === connection.id) {
+                return {
+                  ...cs,
+                  scopes: scope.map((sc: any) => ({ id: getPluginScopeId(connection.plugin, sc) })),
+                };
+              }
+              return cs;
+            }),
+          },
+        }),
+      {
+        formatMessage: () => 'Update data scope successful.',
       },
-    });
-    history.push(pname ? `/projects/:${pname}` : `/blueprints/${blueprint.id}`);
+    );
+
+    if (success) {
+      handleShowTips();
+      handleHideDataScope();
+      setVersion((v) => v + 1);
+    }
   };
 
   return (
     <PageHeader
-      breadcrumbs={[
-        ...(pname
+      breadcrumbs={
+        pname
           ? [
-              {
-                name: 'Projects',
-                path: '/projects',
-              },
-              {
-                name: pname,
-                path: `/projects/${pname}`,
-              },
+              { name: 'Projects', path: '/projects' },
+              { name: pname, path: `/projects/${pname}` },
+              { name: `Connection - ${connection.name}`, path: '' },
             ]
-          : [{ name: bpName, path: `/blueprints/${bid}` }]),
-        { name: `Connection - ${csName}`, path: '' },
-      ]}
+          : [
+              { name: 'Advanced', path: '/blueprints' },
+              { name: 'Blueprints', path: '/blueprints' },
+              { name: bid as any, path: `/blueprints/${bid}` },
+              { name: `Connection - ${connection.name}`, path: '' },
+            ]
+      }
     >
-      <S.Action>
+      <S.Top>
         <span>
-          <Button intent={Intent.PRIMARY} icon="annotation" onClick={handleShowDataScope}>
-            Edit Data Scope
-          </Button>
+          If you would like to edit the Data Scope or Scope Config of this Connection, please{' '}
+          <ExternalLink link={`/connections/${connection.plugin}/${connection.id}`}>
+            go to the Connection detail page
+          </ExternalLink>
+          .
         </span>
         <Popover2
           position={Position.BOTTOM}
           content={
             <S.ActionDelete>
-              <div className="content">Are you sure you want to delete this connection?</div>
+              <div className="content">Are you sure you want to remove the connection from this project/blueprint?</div>
               <div className="btns" onClick={handleRemoveConnection}>
                 <Button intent={Intent.PRIMARY} text="Confirm" />
               </div>
@@ -152,24 +197,44 @@ export const BlueprintConnectionDetailPage = () => {
             Remove this Connection
           </Button>
         </Popover2>
-      </S.Action>
-      <S.Entities>
-        <h4>Data Entities</h4>
-        <ul>
-          {entities.map((it: string) => (
-            <li key={it}>{EntitiesLabel[it]}</li>
-          ))}
-        </ul>
-      </S.Entities>
-      <Transformation connections={[connection]} noFooter onSubmit={handleChangeTransformation} />
+      </S.Top>
+      <Buttons>
+        <Button intent={Intent.PRIMARY} icon="annotation" text="Manage Data Scope" onClick={handleShowDataScope} />
+        <ExternalLink style={{ marginLeft: 8 }} link={`/connections/${connection.plugin}/${connection.id}`}>
+          <Button intent={Intent.PRIMARY} icon="annotation" text="Edit Scope Config" />
+        </ExternalLink>
+      </Buttons>
+      <Table
+        columns={[
+          {
+            title: 'Data Scope',
+            dataIndex: 'name',
+            key: 'name',
+          },
+          {
+            title: 'Scope Config',
+            dataIndex: 'scopeConfig',
+            key: 'scopeConfig',
+            render: (_, row) => (row.scopeConfigId ? row.scopeConfig?.name : 'N/A'),
+          },
+        ]}
+        dataSource={scopes}
+      />
       <Dialog
         isOpen={isOpen}
-        title="Change Data Scope"
+        title="Manage Data Scope"
         footer={null}
         style={{ width: 820 }}
         onCancel={handleHideDataScope}
       >
-        <DataScopeSelect plugin={connection.plugin} connectionId={connection.connectionId} />
+        <DataScopeSelect
+          plugin={connection.plugin}
+          connectionId={connection.id}
+          showWarning
+          initialScope={scopes}
+          onCancel={handleHideDataScope}
+          onSubmit={handleChangeDataScope}
+        />
       </Dialog>
     </PageHeader>
   );

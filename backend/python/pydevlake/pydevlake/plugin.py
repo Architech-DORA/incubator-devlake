@@ -20,19 +20,18 @@ import os
 import sys
 
 import fire
-from sqlmodel import SQLModel, Session
-from sqlalchemy.inspection import inspect
-from sqlalchemy.engine import Engine
 
 import pydevlake.message as msg
 from pydevlake.subtasks import Subtask
+from pydevlake.logger import logger
 from pydevlake.ipc import PluginCommands
 from pydevlake.context import Context
-from pydevlake.stream import Stream, DomainType
-from pydevlake.model import ToolScope, DomainScope, Connection, TransformationRule, SubtaskRun
+from pydevlake.stream import Stream
+from pydevlake.model import ToolScope, DomainScope, Connection, ScopeConfig, raw_data_params
+from pydevlake.migration import MIGRATION_SCRIPTS
 
 
-ScopeTxRulePair = tuple[ToolScope, Optional[TransformationRule]]
+ScopeConfigPair = tuple[ToolScope, ScopeConfig]
 
 
 class Plugin(ABC):
@@ -65,11 +64,11 @@ class Plugin(ABC):
         pass
 
     @property
-    def transformation_rule_type(self) -> Type[TransformationRule]:
-        return None
+    def scope_config_type(self) -> Type[ScopeConfig]:
+        return ScopeConfig
 
     @abstractmethod
-    def test_connection(self, connection: Connection):
+    def test_connection(self, connection: Connection) -> msg.TestConnectionResult:
         """
         Test if the the connection with the datasource can be established with the given connection.
         Must raise an exception if the connection can't be established.
@@ -97,37 +96,28 @@ class Plugin(ABC):
         pass
 
     def collect(self, ctx: Context, stream: str):
-        yield from self.get_stream(stream).collector.run(ctx)
+        return self._run_stream(ctx, stream, 'collector')
 
     def extract(self, ctx: Context, stream: str):
-        yield from self.get_stream(stream).extractor.run(ctx)
+        return self._run_stream(ctx, stream, 'extractor')
 
     def convert(self, ctx: Context, stream: str):
-        yield from self.get_stream(stream).convertor.run(ctx)
+        return self._run_stream(ctx, stream, 'convertor')
 
-    def run_migrations(self, engine: Engine, force: bool = False):
-        # NOTE: Not sure what "force" is for
-        # TODO: Support migration for transformation rule and connection tables
-        # They are currently created on go-side.
-        tool_models = [stream.tool_model for stream in self._streams.values()]
-        tool_models.append(self.tool_scope_type)
-        inspector = inspect(engine)
-        tables = SQLModel.metadata.tables
-        with Session(engine) as session:
-            for model in tool_models:
-                if inspector.has_table(model.__tablename__):
-                    # TODO: Add version table and migrate if needed
-                    model.migrate(session)
-                else:
-                    tables[model.__tablename__].create(engine)
-            session.commit()
-        tables[SubtaskRun.__tablename__].create(engine, checkfirst=True)
+    def _run_stream(self, ctx: Context, stream_name: str, subtask: str):
+        stream = self.get_stream(stream_name)
+        if stream.should_run_on(ctx.scope):
+            yield from getattr(stream, subtask).run(ctx)
+        else:
+            logger.info(f"Skipping stream {stream.name} for scope {ctx.scope.name}")
 
     def make_remote_scopes(self, connection: Connection, group_id: Optional[str] = None) -> msg.RemoteScopes:
         if group_id:
             remote_scopes = []
             for tool_scope in self.remote_scopes(connection, group_id):
                 tool_scope.connection_id = connection.id
+                tool_scope.raw_data_params = raw_data_params(connection.id, tool_scope.id)
+                tool_scope.raw_data_table = self._raw_scope_table_name()
                 remote_scopes.append(
                     msg.RemoteScope(
                         id=tool_scope.id,
@@ -140,20 +130,22 @@ class Plugin(ABC):
             remote_scopes = self.remote_scope_groups(connection)
         return msg.RemoteScopes(__root__=remote_scopes)
 
-    def make_pipeline(self, scope_tx_rule_pairs: list[ScopeTxRulePair],
-                      entity_types: list[DomainType], connection: Connection):
+    def make_pipeline(self, scope_config_pairs: list[ScopeConfigPair],
+                      connection: Connection) -> msg.PipelineData:
         """
         Make a simple pipeline using the scopes declared by the plugin.
         """
-        plan = self.make_pipeline_plan(scope_tx_rule_pairs, entity_types, connection)
+        plan = self.make_pipeline_plan(scope_config_pairs, connection)
         domain_scopes = []
-        for tool_scope, _ in scope_tx_rule_pairs:
+        for tool_scope, _ in scope_config_pairs:
             for scope in self.domain_scopes(tool_scope):
                 scope.id = tool_scope.domain_id()
+                scope.raw_data_params = raw_data_params(connection.id, tool_scope.id)
+                scope.raw_data_table = self._raw_scope_table_name()
                 domain_scopes.append(
                     msg.DynamicDomainScope(
                         type_name=type(scope).__name__,
-                        data=scope.json(exclude_unset=True)
+                        data=scope.json(exclude_unset=True, by_alias=True)
                     )
                 )
         return msg.PipelineData(
@@ -161,24 +153,27 @@ class Plugin(ABC):
             scopes=domain_scopes
         )
 
-    def make_pipeline_plan(self, scope_tx_rule_pairs: list[ScopeTxRulePair],
-                           entity_types: list[DomainType], connection: Connection) -> list[list[msg.PipelineTask]]:
+    def make_pipeline_plan(self, scope_config_pairs: list[ScopeConfigPair],
+                           connection: Connection) -> list[list[msg.PipelineTask]]:
         """
         Generate a pipeline plan with one stage per scope, plus optional additional stages.
         Redefine `extra_stages` to add stages at the end of this pipeline.
         """
         return [
-            *(self.make_pipeline_stage(scope, tx_rule, entity_types, connection) for scope, tx_rule in scope_tx_rule_pairs),
-            *self.extra_stages(scope_tx_rule_pairs, entity_types, connection)
+            *(self.make_pipeline_stage(scope, config, connection) for scope, config in scope_config_pairs),
+            *self.extra_stages(scope_config_pairs, connection)
         ]
 
-    def extra_stages(self, scope_tx_rule_pairs: list[ScopeTxRulePair],
-                     entity_types: list[DomainType], connection: Connection) -> list[list[msg.PipelineTask]]:
+    def _raw_scope_table_name(self) -> str:
+        return f"_raw_{self.name}_scopes"
+
+    def extra_stages(self, scope_config_pairs: list[ScopeConfigPair],
+                     connection: Connection) -> list[list[msg.PipelineTask]]:
         """Override this method to add extra stages to the pipeline plan"""
         return []
 
-    def make_pipeline_stage(self, scope: ToolScope, tx_rule: Optional[TransformationRule],
-                            entity_types: list[DomainType], connection: Connection) -> list[msg.PipelineTask]:
+    def make_pipeline_stage(self, scope: ToolScope, config: ScopeConfig,
+                            connection: Connection) -> list[msg.PipelineTask]:
         """
         Generate a pipeline stage for the given scope, plus optional additional tasks.
         Subtasks are selected from `entity_types` via `select_subtasks`.
@@ -188,33 +183,33 @@ class Plugin(ABC):
             msg.PipelineTask(
                 plugin=self.name,
                 skip_on_fail=False,
-                subtasks=self.select_subtasks(scope, entity_types),
+                subtasks=self.select_subtasks(scope, config),
                 options={
                     "scopeId": scope.id,
                     "scopeName": scope.name,
                     "connectionId": connection.id
                 }
             ),
-            *self.extra_tasks(scope, tx_rule, entity_types, connection)
+            *self.extra_tasks(scope, config, connection)
         ]
 
-    def extra_tasks(self, scope: ToolScope, tx_rule: Optional[TransformationRule],
-                    entity_types: list[DomainType], connection: Connection) -> list[msg.PipelineTask]:
+    def extra_tasks(self, scope: ToolScope, config: ScopeConfig,
+                    connection: Connection) -> list[msg.PipelineTask]:
         """Override this method to add tasks to the given scope stage"""
         return []
 
-    def select_subtasks(self, scope: ToolScope, entity_types: list[DomainType]) -> list[str]:
+    def select_subtasks(self, scope: ToolScope, config: ScopeConfig) -> list[str]:
         """
         Returns the list of subtasks names that should be run for given scope and entity types.
         """
         subtasks = []
         for stream in self._streams.values():
-            if set(stream.domain_types).intersection(entity_types) and stream.should_run_on(scope):
+            if set(stream.domain_types).intersection(config.domain_types) and stream.should_run_on(scope):
                 for subtask in stream.subtasks:
                     subtasks.append(subtask.name)
         return subtasks
 
-    def get_stream(self, stream_name: str):
+    def get_stream(self, stream_name: str) -> Stream:
         stream = self._streams.get(stream_name)
         if stream is None:
             raise Exception(f'Unknown stream {stream_name}')
@@ -227,28 +222,23 @@ class Plugin(ABC):
                 entry_point_name=subtask.verb,
                 arguments=[subtask.stream.name],
                 required=True,
-                enabled_by_default=True,
+                enabled_by_default=False,
                 description=subtask.description,
                 domain_types=[dm.value for dm in subtask.stream.domain_types]
             )
             for subtask in self.subtasks
         ]
-        if self.transformation_rule_type:
-            tx_rule_model_info = msg.DynamicModelInfo.from_model(self.transformation_rule_type)
-        else:
-            tx_rule_model_info = None
-        plugin_tables = [stream(self.name).raw_model_table for stream in self.streams] + \
-                        [stream.tool_model.__tablename__ for stream in self.streams]
         return msg.PluginInfo(
             name=self.name,
             description=self.description,
             plugin_path=self._plugin_path(),
             extension="datasource",
             connection_model_info=msg.DynamicModelInfo.from_model(self.connection_type),
-            transformation_rule_model_info=tx_rule_model_info,
             scope_model_info=msg.DynamicModelInfo.from_model(self.tool_scope_type),
+            scope_config_model_info=msg.DynamicModelInfo.from_model(self.scope_config_type),
+            tool_model_infos=[msg.DynamicModelInfo.from_model(stream.tool_model) for stream in self._streams.values()],
             subtask_metas=subtask_metas,
-            tables=plugin_tables,
+            migration_scripts=MIGRATION_SCRIPTS
         )
 
     def _plugin_path(self):

@@ -16,7 +16,7 @@
 from typing import Optional
 import base64
 
-from pydevlake.api import API, request_hook, Paginator, Request
+from pydevlake.api import API, APIException, Paginator, Request, Response, request_hook, response_hook
 
 
 class AzurePaginator(Paginator):
@@ -24,7 +24,7 @@ class AzurePaginator(Paginator):
         return response.json['value']
 
     def get_next_page_id(self, response) -> Optional[str]:
-        return response.headers.get('x-ms-continuation')
+        return response.headers.get('x-ms-continuationtoken')
 
     def set_next_page_param(self, request, next_page_id):
         request.query_args['continuationToken'] = next_page_id
@@ -36,12 +36,20 @@ class AzureDevOpsAPI(API):
 
     @request_hook
     def authenticate(self, request: Request):
-        token_b64 = base64.b64encode((':' + self.connection.token).encode()).decode()
+        token_b64 = base64.b64encode((':' + self.connection.token.get_secret_value()).encode()).decode()
         request.headers['Authorization'] = 'Basic ' + token_b64
 
     @request_hook
     def set_api_version(self, request: Request):
         request.query_args['api-version'] = "7.0"
+
+    @response_hook
+    def change_203_to_401(self, response: Response):
+        # When the token is invalid, Azure DevOps returns a 302 that resolves to a sign-in page with status 203
+        # We want to change that to a 401 and raise an exception
+        if response.status == 203:
+            response.status = 401
+            raise APIException(response)
 
     def my_profile(self):
         req = Request('https://app.vssps.visualstudio.com/_apis/profile/profiles/me')
@@ -70,7 +78,13 @@ class AzureDevOpsAPI(API):
         return self.get(org, project, '_apis/git/repositories', repo_id, 'commits')
 
     def builds(self, org: str, project: str, repository_id: str, provider: str):
-        return self.get(org, project, '_apis/build/builds', repositoryId=repository_id, repositoryType=provider)
+        return self.get(org, project, '_apis/build/builds', repositoryId=repository_id, repositoryType=provider, deletedFilter='excludeDeleted')
 
     def jobs(self, org: str, project: str, build_id: int):
         return self.get(org, project, '_apis/build/builds', build_id, 'timeline')
+
+    def endpoints(self, org: str, project: str):
+        return self.get(org, project, '_apis/serviceendpoint/endpoints')
+
+    def external_repositories(self, org: str, project: str, provider: str, endpoint_id: str):
+        return self.get(org, project, '_apis/sourceProviders', provider, 'repositories', serviceEndpointId=endpoint_id)

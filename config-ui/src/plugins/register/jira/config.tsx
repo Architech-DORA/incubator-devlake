@@ -54,11 +54,20 @@ export const JiraConfig: PluginConfigType = {
       },
     ],
   },
-  entities: ['TICKET', 'CROSS'],
-  transformation: {
-    storyPointField: '',
-    typeMappings: {},
-    remotelinkCommitShaPattern: '',
-    remotelinkRepoPattern: [''],
+  dataScope: {
+    millerColumns: {
+      title: 'Boards *',
+      subTitle: 'Select the boards you would like to sync.',
+      columnCount: 1,
+    },
+  },
+  scopeConfig: {
+    entities: ['TICKET', 'CROSS'],
+    transformation: {
+      storyPointField: '',
+      typeMappings: {},
+      remotelinkCommitShaPattern: '',
+      remotelinkRepoPattern: [''],
+    },
   },
 };

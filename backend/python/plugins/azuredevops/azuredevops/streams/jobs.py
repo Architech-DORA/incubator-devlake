@@ -15,10 +15,13 @@
 
 from typing import Iterable
 
+from http import HTTPStatus
+
 from azuredevops.api import AzureDevOpsAPI
 from azuredevops.models import Job, Build, GitRepository
 from azuredevops.streams.builds import Builds
 from pydevlake import Context, Substream, DomainType
+from pydevlake.api import APIException
 import pydevlake.domain_layer.devops as devops
 
 
@@ -30,13 +33,29 @@ class Jobs(Substream):
     def collect(self, state, context, parent: Build) -> Iterable[tuple[object, dict]]:
         repo: GitRepository = context.scope
         api = AzureDevOpsAPI(context.connection)
-        response = api.jobs(repo.org_id, repo.project_id, parent.id)
+        try:
+            response = api.jobs(repo.org_id, repo.project_id, parent.id)
+        except APIException as e:
+            # Asking for the timeline of a deleted build returns a 204.
+            # But a "deleted" build may be "cleaned" (i.e. deleted for real)
+            # after some time. In this case, the timeline endpoint returns a
+            # 404 instead.
+            if e.response.status == HTTPStatus.NOT_FOUND:
+                return
+            raise
+        # If a build has failed before any jobs have started, e.g. due to a
+        # bad YAML file, then the jobs endpoint will return a 204 NO CONTENT.
+        if response.status == HTTPStatus.NO_CONTENT:
+            return
         for raw_job in response.json["records"]:
             if raw_job["type"] == "Job":
                 raw_job["build_id"] = parent.domain_id()
                 yield raw_job, state
 
     def convert(self, j: Job, ctx: Context) -> Iterable[devops.CICDPipeline]:
+        if not j.start_time:
+            return
+
         result = None
         if j.result == Job.JobResult.Abandoned:
             result = devops.CICDResult.ABORT
@@ -60,22 +79,27 @@ class Jobs(Substream):
             status = devops.CICDStatus.IN_PROGRESS
 
         type = devops.CICDType.BUILD
-        if ctx.transformation_rule and ctx.transformation_rule.deployment_pattern.search(j.name):
+        if ctx.scope_config.deployment_pattern and ctx.scope_config.deployment_pattern.search(j.name):
             type = devops.CICDType.DEPLOYMENT
         environment = devops.CICDEnvironment.TESTING
-        if ctx.transformation_rule and ctx.transformation_rule.production_pattern.search(j.name):
+        if ctx.scope_config.production_pattern and ctx.scope_config.production_pattern.search(j.name):
             environment = devops.CICDEnvironment.PRODUCTION
+
+        if j.finish_time:
+            duration_sec = abs(j.finish_time.second-j.start_time.second)
+        else:
+            duration_sec = 0
 
         yield devops.CICDTask(
             id=j.id,
             name=j.name,
             pipeline_id=j.build_id,
             status=status,
-            created_date=j.startTime,
-            finished_date=j.finishTime,
+            created_date=j.start_time,
+            finished_date=j.finish_time,
             result=result,
             type=type,
-            duration_sec=abs(j.finishTime.second-j.startTime.second),
+            duration_sec=duration_sec,
             environment=environment,
             cicd_scope_id=ctx.scope.domain_id()
         )

@@ -18,6 +18,7 @@ limitations under the License.
 package tasks
 
 import (
+	"fmt"
 	"reflect"
 
 	"github.com/apache/incubator-devlake/core/dal"
@@ -59,15 +60,17 @@ func ConvertProducts(taskCtx plugin.SubTaskContext) errors.Error {
 		Input:        cursor,
 		RawDataSubTaskArgs: api.RawDataSubTaskArgs{
 			Ctx: taskCtx,
-			Params: ZentaoApiParams{
-				ConnectionId: data.Options.ConnectionId,
-				ProductId:    data.Options.ProductId,
-				ProjectId:    data.Options.ProjectId,
-			},
+			Params: ScopeParams(
+				data.Options.ConnectionId,
+				data.Options.ProjectId,
+				data.Options.ProductId,
+			),
 			Table: RAW_PRODUCT_TABLE,
 		},
 		Convert: func(inputRow interface{}) ([]interface{}, errors.Error) {
 			toolProduct := inputRow.(*models.ZentaoProduct)
+
+			data.ProductList[toolProduct.Id] = toolProduct.Name
 
 			domainBoard := &ticket.Board{
 				DomainEntity: domainlayer.DomainEntity{
@@ -77,6 +80,7 @@ func ConvertProducts(taskCtx plugin.SubTaskContext) errors.Error {
 				Description: toolProduct.Description,
 				CreatedDate: toolProduct.CreatedDate.ToNullableTime(),
 				Type:        toolProduct.Type + "/" + toolProduct.ProductType,
+				Url:         fmt.Sprintf("/product-index-%d.html", data.Options.ProductId),
 			}
 			results := make([]interface{}, 0)
 			results = append(results, domainBoard)

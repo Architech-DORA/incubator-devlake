@@ -19,13 +19,18 @@ package tasks
 
 import (
 	"encoding/json"
+	"regexp"
+
 	"github.com/apache/incubator-devlake/core/errors"
 	"github.com/apache/incubator-devlake/core/models/domainlayer/ticket"
 	"github.com/apache/incubator-devlake/core/plugin"
 	"github.com/apache/incubator-devlake/helpers/pluginhelper/api"
 	"github.com/apache/incubator-devlake/plugins/gitlab/models"
-	"regexp"
 )
+
+func init() {
+	RegisterSubtaskMeta(&ExtractApiIssuesMeta)
+}
 
 var ExtractApiIssuesMeta = plugin.SubTaskMeta{
 	Name:             "extractApiIssues",
@@ -33,6 +38,7 @@ var ExtractApiIssuesMeta = plugin.SubTaskMeta{
 	EnabledByDefault: true,
 	Description:      "Extract raw Issues data into tool layer table gitlab_issues",
 	DomainTypes:      []string{plugin.DOMAIN_TYPE_TICKET},
+	Dependencies:     []*plugin.SubTaskMeta{&CollectApiIssuesMeta},
 }
 
 type IssuesResponse struct {
@@ -127,7 +133,7 @@ type IssuesResponse struct {
 
 func ExtractApiIssues(taskCtx plugin.SubTaskContext) errors.Error {
 	rawDataSubTaskArgs, data := CreateRawDataSubTaskArgs(taskCtx, RAW_ISSUE_TABLE)
-	config := data.Options.GitlabTransformationRule
+	config := data.Options.ScopeConfig
 	var issueSeverityRegex *regexp.Regexp
 	var issueComponentRegex *regexp.Regexp
 	var issuePriorityRegex *regexp.Regexp
@@ -255,7 +261,7 @@ func ExtractApiIssues(taskCtx plugin.SubTaskContext) errors.Error {
 			results = append(results, gitlabIssue)
 
 			for _, v := range body.Assignees {
-				GitlabAssignee := &models.GitlabAccount{
+				assignee := &models.GitlabAccount{
 					ConnectionId: data.Options.ConnectionId,
 					Username:     v.Username,
 					Name:         v.Name,
@@ -263,7 +269,14 @@ func ExtractApiIssues(taskCtx plugin.SubTaskContext) errors.Error {
 					AvatarUrl:    v.AvatarUrl,
 					WebUrl:       v.WebUrl,
 				}
-				results = append(results, GitlabAssignee)
+				issueAssignee := &models.GitlabIssueAssignee{
+					ConnectionId: data.Options.ConnectionId,
+					GitlabId:     gitlabIssue.GitlabId,
+					ProjectId:    gitlabIssue.ProjectId,
+					AssigneeId:   v.Id,
+					AssigneeName: v.Username,
+				}
+				results = append(results, assignee, issueAssignee)
 			}
 
 			return results, nil

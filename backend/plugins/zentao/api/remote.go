@@ -43,12 +43,18 @@ type ProjectResponse struct {
 	Values []models.ZentaoProject `json:"projects"`
 }
 
+func (pr *ProjectResponse) ConvertFix() {
+	for i := range pr.Values {
+		pr.Values[i].ConvertFix()
+	}
+}
+
 func getGroup(basicRes context2.BasicRes, gid string, queryData *api.RemoteQueryData, connection models.ZentaoConnection) ([]api.BaseRemoteGroupResponse, errors.Error) {
 	return []api.BaseRemoteGroupResponse{
-		{
+		/*{
 			Id:   `products`,
 			Name: `Products`,
-		},
+		},*/
 		{
 			Id:   `projects`,
 			Name: `Projects`,
@@ -77,30 +83,32 @@ func RemoteScopes(input *plugin.ApiResourceInput) (*plugin.ApiResourceOutput, er
 	if gid == "" {
 		return productRemoteHelper.GetScopesFromRemote(input, getGroup, nil)
 	} else if gid == `products` {
-		return productRemoteHelper.GetScopesFromRemote(input,
-			nil,
-			func(basicRes context2.BasicRes, gid string, queryData *api.RemoteQueryData, connection models.ZentaoConnection) ([]models.ZentaoProductRes, errors.Error) {
-				query := initialQuery(queryData)
-				// create api client
-				apiClient, err := api.NewApiClientFromConnection(context.TODO(), basicRes, &connection)
-				if err != nil {
-					return nil, err
-				}
+		/*
+			return productRemoteHelper.GetScopesFromRemote(input,
+				nil,
+				func(basicRes context2.BasicRes, gid string, queryData *api.RemoteQueryData, connection models.ZentaoConnection) ([]models.ZentaoProductRes, errors.Error) {
+					query := initialQuery(queryData)
+					// create api client
+					apiClient, err := api.NewApiClientFromConnection(context.TODO(), basicRes, &connection)
+					if err != nil {
+						return nil, err
+					}
 
-				query.Set("sort", "name")
-				// list projects part
-				res, err := apiClient.Get("/products", query, nil)
-				if err != nil {
-					return nil, err
-				}
+					query.Set("sort", "name")
+					// list projects part
+					res, err := apiClient.Get("/products", query, nil)
+					if err != nil {
+						return nil, err
+					}
 
-				resBody := &ProductResponse{}
-				err = api.UnmarshalResponse(res, resBody)
-				if err != nil {
-					return nil, err
-				}
-				return resBody.Values, nil
-			})
+					resBody := &ProductResponse{}
+					err = api.UnmarshalResponse(res, resBody)
+					if err != nil {
+						return nil, err
+					}
+					return resBody.Values, nil
+				})
+		*/
 	} else if gid == `projects` {
 		return projectRemoteHelper.GetScopesFromRemote(input,
 			nil,
@@ -124,6 +132,9 @@ func RemoteScopes(input *plugin.ApiResourceInput) (*plugin.ApiResourceOutput, er
 				if err != nil {
 					return nil, err
 				}
+
+				resBody.ConvertFix()
+
 				return resBody.Values, nil
 			})
 	}

@@ -23,10 +23,6 @@ import (
 	"encoding/json"
 	goerror "errors"
 	"fmt"
-	"github.com/apache/incubator-devlake/core/dal"
-	dora "github.com/apache/incubator-devlake/plugins/dora/impl"
-	org "github.com/apache/incubator-devlake/plugins/org/impl"
-	remotePlugin "github.com/apache/incubator-devlake/server/services/remote/plugin"
 	"io"
 	"math"
 	"net/http"
@@ -35,6 +31,12 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/apache/incubator-devlake/core/dal"
+	dora "github.com/apache/incubator-devlake/plugins/dora/impl"
+	org "github.com/apache/incubator-devlake/plugins/org/impl"
+	refdiff "github.com/apache/incubator-devlake/plugins/refdiff/impl"
+	remotePlugin "github.com/apache/incubator-devlake/server/services/remote/plugin"
 
 	"github.com/apache/incubator-devlake/core/config"
 	corectx "github.com/apache/incubator-devlake/core/context"
@@ -74,14 +76,17 @@ func init() {
 // DevlakeClient FIXME
 type (
 	DevlakeClient struct {
-		Endpoint        string
-		db              *gorm.DB
-		log             log.Logger
-		cfg             *viper.Viper
-		testCtx         *testing.T
-		basicRes        corectx.BasicRes
-		timeout         time.Duration
-		pipelineTimeout time.Duration
+		Endpoint               string
+		db                     *gorm.DB
+		log                    log.Logger
+		cfg                    *viper.Viper
+		testCtx                *testing.T
+		basicRes               corectx.BasicRes
+		timeout                time.Duration
+		pipelineTimeout        time.Duration
+		expectedStatusCode     int
+		lastReturnedStatusCode int
+		isRemote               bool
 	}
 	LocalClientConfig struct {
 		ServerPort      uint
@@ -89,23 +94,42 @@ type (
 		CreateServer    bool
 		DropDb          bool
 		TruncateDb      bool
-		Plugins         map[string]plugin.PluginMeta
+		Plugins         []plugin.PluginMeta
 		Timeout         time.Duration
 		PipelineTimeout time.Duration
 	}
 	RemoteClientConfig struct {
-		Endpoint string
+		Endpoint   string
+		DbURL      string
+		TruncateDb bool
 	}
 )
 
 // ConnectRemoteServer returns a client to an existing server based on the config
-func ConnectRemoteServer(t *testing.T, cfg *RemoteClientConfig) *DevlakeClient {
-	return &DevlakeClient{
-		Endpoint: cfg.Endpoint,
-		db:       nil,
-		log:      nil,
-		testCtx:  t,
+func ConnectRemoteServer(t *testing.T, clientConfig *RemoteClientConfig) *DevlakeClient {
+	var db *gorm.DB
+	var err errors.Error
+	logger := logruslog.Global.Nested("test")
+	cfg := config.GetConfig()
+	if clientConfig.DbURL != "" {
+		cfg.Set("DB_URL", clientConfig.DbURL)
+		db, err = runner.NewGormDb(cfg, logger)
+		require.NoError(t, err)
 	}
+	logger.Info("Connecting to remote server: %s", clientConfig.Endpoint)
+	client := &DevlakeClient{
+		isRemote: true,
+		Endpoint: clientConfig.Endpoint,
+		db:       db,
+		cfg:      cfg,
+		log:      logger,
+		testCtx:  t,
+		basicRes: contextimpl.NewDefaultBasicRes(cfg, logger, dalgorm.NewDalgorm(db)),
+	}
+	client.prepareDB(&LocalClientConfig{
+		TruncateDb: clientConfig.TruncateDb,
+	})
+	return client
 }
 
 // ConnectLocalServer spins up a local server from the config and returns a client connected to it
@@ -172,6 +196,17 @@ func (d *DevlakeClient) SetPipelineTimeout(timeout time.Duration) {
 	d.pipelineTimeout = timeout
 }
 
+// SetExpectedStatusCode override the expected status code of the next API call. If it's anything but this, the test will fail.
+func (d *DevlakeClient) SetExpectedStatusCode(code int) *DevlakeClient {
+	d.expectedStatusCode = code
+	return d
+}
+
+// SetExpectedStatusCode return the last http status code
+func (d *DevlakeClient) LastReturnedStatusCode() int {
+	return d.lastReturnedStatusCode
+}
+
 // GetDal get a reference to the dal.Dal used by the server
 func (d *DevlakeClient) GetDal() dal.Dal {
 	return dalgorm.NewDalgorm(d.db)
@@ -179,6 +214,9 @@ func (d *DevlakeClient) GetDal() dal.Dal {
 
 // AwaitPluginAvailability wait for this plugin to become available on the server given a timeout. Returns false if this condition does not get met.
 func (d *DevlakeClient) AwaitPluginAvailability(pluginName string, timeout time.Duration) {
+	if d.isRemote {
+		return
+	}
 	err := runWithTimeout(timeout, func() (bool, errors.Error) {
 		_, err := plugin.GetPlugin(pluginName)
 		return err == nil, nil
@@ -215,19 +253,11 @@ func (d *DevlakeClient) RunPlugin(ctx context.Context, pluginName string, plugin
 
 func (d *DevlakeClient) configureEncryption() {
 	v := config.GetConfig()
-	encKey := v.GetString(plugin.EncodeKeyEnvStr)
-	if encKey == "" {
-		var err errors.Error
-		// Randomly generate a bunch of encryption keys and set them to config
-		encKey, err = plugin.RandomEncKey()
-		if err != nil {
-			panic(err)
-		}
-		v.Set(plugin.EncodeKeyEnvStr, encKey)
-		err = config.WriteConfig(v)
-		if err != nil {
-			panic(err)
-		}
+	encryptionSecret := v.GetString(plugin.EncodeKeyEnvStr)
+	// only test environment should have this set
+	if encryptionSecret == "" {
+		// default value
+		v.Set(plugin.EncodeKeyEnvStr, "DFLFZLMBBFDDCYWRECDCIYUROPPAKQDFQMMJEFPIKVFVHZBRGAZIHKRJIJZMOHWEVRSCETAGGONPSULGOXITVXISVCQGPSFAOGRDLUANEYDQFBDKVMYYHUZFHYVYGPPT")
 	}
 }
 
@@ -256,16 +286,15 @@ func (d *DevlakeClient) forceSendHttpRequest(retries uint, req *http.Request, on
 
 func (d *DevlakeClient) initPlugins(cfg *LocalClientConfig) {
 	d.testCtx.Helper()
-	if cfg.Plugins == nil {
-		cfg.Plugins = map[string]plugin.PluginMeta{}
-	}
 	// default plugins
-	cfg.Plugins["org"] = org.Org{}
-	cfg.Plugins["dora"] = dora.Dora{}
-
+	cfg.Plugins = append(cfg.Plugins, []plugin.PluginMeta{
+		org.Org{},
+		dora.Dora{},
+		refdiff.RefDiff{},
+	}...)
 	// register and init plugins
-	for name, p := range cfg.Plugins {
-		require.NoError(d.testCtx, plugin.RegisterPlugin(name, p))
+	for _, p := range cfg.Plugins {
+		require.NoError(d.testCtx, plugin.RegisterPlugin(p.Name(), p))
 	}
 	for _, p := range plugin.AllPlugins() {
 		if pi, ok := p.(plugin.PluginInit); ok {
@@ -345,11 +374,14 @@ func runWithTimeout(timeout time.Duration, f func() (bool, errors.Error)) errors
 	}
 }
 
-func sendHttpRequest[Res any](t *testing.T, timeout time.Duration, debug debugInfo, httpMethod string, endpoint string, headers map[string]string, body any) Res {
+func sendHttpRequest[Res any](t *testing.T, timeout time.Duration, ctx *testContext, httpMethod string, endpoint string, headers map[string]string, body any) Res {
 	t.Helper()
+	defer func() {
+		ctx.client.expectedStatusCode = 0
+	}()
 	b := ToJson(body)
-	if debug.print {
-		coloredPrintf("calling:\n\t%s %s\nwith:\n%s\n", httpMethod, endpoint, string(ToCleanJson(debug.inlineJson, body)))
+	if ctx.printPayload {
+		coloredPrintf("calling:\n\t%s %s\nwith:\n%s\n", httpMethod, endpoint, string(ToCleanJson(ctx.inlineJson, body)))
 	}
 	var result Res
 	err := runWithTimeout(timeout, func() (bool, errors.Error) {
@@ -366,19 +398,27 @@ func sendHttpRequest[Res any](t *testing.T, timeout time.Duration, debug debugIn
 		if err != nil {
 			return false, errors.Convert(err)
 		}
-		if response.StatusCode >= 300 {
-			if err = response.Body.Close(); err != nil {
-				return false, errors.Convert(err)
+		defer func() {
+			ctx.client.lastReturnedStatusCode = response.StatusCode
+		}()
+		if ctx.client.expectedStatusCode > 0 || response.StatusCode >= 300 {
+			if ctx.client.expectedStatusCode == 0 || ctx.client.expectedStatusCode != response.StatusCode {
+				if err = response.Body.Close(); err != nil {
+					return false, errors.Convert(err)
+				}
+				response.Close = true
+				return false, errors.HttpStatus(response.StatusCode).New(fmt.Sprintf("unexpected http status code calling [%s] %s: %d", httpMethod, endpoint, response.StatusCode))
 			}
-			response.Close = true
-			return false, errors.HttpStatus(response.StatusCode).New(fmt.Sprintf("unexpected http status code: %d", response.StatusCode))
 		}
 		b, _ = io.ReadAll(response.Body)
 		if err = json.Unmarshal(b, &result); err != nil {
-			return false, errors.Convert(err)
+			if response.StatusCode < 300 {
+				return false, errors.Convert(err)
+			}
+			// it's probably ok since the request failed anyway
 		}
-		if debug.print {
-			coloredPrintf("result: %s\n", ToCleanJson(debug.inlineJson, b))
+		if ctx.printPayload {
+			coloredPrintf("result: %s\n", ToCleanJson(ctx.inlineJson, b))
 		}
 		if err = response.Body.Close(); err != nil {
 			return false, errors.Convert(err)
@@ -396,7 +436,8 @@ func coloredPrintf(msg string, args ...any) {
 	fmt.Printf(colorifier, msg)
 }
 
-type debugInfo struct {
-	print      bool
-	inlineJson bool
+type testContext struct {
+	printPayload bool
+	inlineJson   bool
+	client       *DevlakeClient
 }

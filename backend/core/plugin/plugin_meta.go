@@ -17,11 +17,14 @@ limitations under the License.
 
 package plugin
 
+import "github.com/apache/incubator-devlake/core/dal"
+
 // PluginMeta is the Minimal features a plugin should comply, should be implemented by all plugins
 type PluginMeta interface {
 	Description() string
 	// PkgPath information lost when compiled as plugin(.so)
 	RootPkgPath() string
+	Name() string
 }
 
 type GrafanaDashboard struct {
@@ -43,8 +46,7 @@ type PluginIcon interface {
 
 // PluginSource abstracts data sources
 type PluginSource interface {
-	Connection() interface{}
-	Scope() interface{}
-	// Deprecated: rename to ScopeConfig
-	// TransformationRule() interface{}
+	Connection() dal.Tabler
+	Scope() ToolLayerScope
+	ScopeConfig() dal.Tabler
 }

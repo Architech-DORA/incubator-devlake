@@ -16,7 +16,7 @@
  *
  */
 
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { Intent } from '@blueprintjs/core';
 
 import { TextTooltip } from '@/components';
@@ -48,7 +48,7 @@ export const PipelineTask = ({ task }: Props) => {
         name = `${name}:${options.name}`;
         break;
       case ['gitextractor'].includes(config.plugin):
-        name = `${name}:${options.repoId}`;
+        name = `${name}:${options.name}`;
         break;
       case ['dora'].includes(config.plugin):
         name = `${name}:${options.projectName}`;

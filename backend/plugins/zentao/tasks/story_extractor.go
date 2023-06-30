@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 
 	"github.com/apache/incubator-devlake/core/errors"
+	"github.com/apache/incubator-devlake/core/models/domainlayer/ticket"
 	"github.com/apache/incubator-devlake/core/plugin"
 	"github.com/apache/incubator-devlake/helpers/pluginhelper/api"
 	"github.com/apache/incubator-devlake/plugins/zentao/models"
@@ -37,6 +38,10 @@ var ExtractStoryMeta = plugin.SubTaskMeta{
 }
 
 func ExtractStory(taskCtx plugin.SubTaskContext) errors.Error {
+	return RangeProductOneByOne(taskCtx, ExtractStoryForOneProduct)
+}
+
+func ExtractStoryForOneProduct(taskCtx plugin.SubTaskContext) errors.Error {
 	data := taskCtx.GetData().(*ZentaoTaskData)
 
 	// this collect only work for product
@@ -44,14 +49,17 @@ func ExtractStory(taskCtx plugin.SubTaskContext) errors.Error {
 		return nil
 	}
 
+	statusMappings := getStoryStatusMapping(data)
+	stdTypeMappings := getStdTypeMappings(data)
+
 	extractor, err := api.NewApiExtractor(api.ApiExtractorArgs{
 		RawDataSubTaskArgs: api.RawDataSubTaskArgs{
 			Ctx: taskCtx,
-			Params: ZentaoApiParams{
-				ConnectionId: data.Options.ConnectionId,
-				ProductId:    data.Options.ProductId,
-				ProjectId:    data.Options.ProjectId,
-			},
+			Params: ScopeParams(
+				data.Options.ConnectionId,
+				data.Options.ProjectId,
+				data.Options.ProductId,
+			),
 			Table: RAW_STORY_TABLE,
 		},
 		Extract: func(row *api.RawData) ([]interface{}, errors.Error) {
@@ -60,6 +68,14 @@ func ExtractStory(taskCtx plugin.SubTaskContext) errors.Error {
 			if err != nil {
 				return nil, errors.Default.WrapRaw(err)
 			}
+
+			// project scope need filter
+			if data.Options.ProjectId != 0 {
+				if _, ok := data.StoryList[res.ID]; !ok {
+					return nil, nil
+				}
+			}
+
 			story := &models.ZentaoStory{
 				ConnectionId:     data.Options.ConnectionId,
 				ID:               res.ID,
@@ -116,7 +132,24 @@ func ExtractStory(taskCtx plugin.SubTaskContext) errors.Error {
 				Deleted:          res.Deleted,
 				PriOrder:         res.PriOrder,
 				PlanTitle:        res.PlanTitle,
+				Url:              row.Url,
 			}
+
+			story.StdType = stdTypeMappings[story.Type+"."+story.Category]
+			if story.StdType == "" {
+				story.StdType = ticket.REQUIREMENT
+			}
+
+			if len(statusMappings) != 0 {
+				story.StdStatus = statusMappings[story.Status+"-"+story.Stage]
+			} else {
+				story.StdStatus = ticket.GetStatus(&ticket.StatusRule{
+					Done:    []string{"closed"},
+					Todo:    []string{"wait"},
+					Default: ticket.IN_PROGRESS,
+				}, story.Stage)
+			}
+
 			results := make([]interface{}, 0)
 			results = append(results, story)
 			return results, nil

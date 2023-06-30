@@ -18,34 +18,37 @@ limitations under the License.
 package api
 
 import (
+	"testing"
+
+	"github.com/apache/incubator-devlake/core/models/common"
 	"github.com/apache/incubator-devlake/core/models/domainlayer"
 	"github.com/apache/incubator-devlake/core/models/domainlayer/ticket"
 	"github.com/apache/incubator-devlake/core/plugin"
-	mockcontext "github.com/apache/incubator-devlake/mocks/core/context"
+	"github.com/apache/incubator-devlake/helpers/unithelper"
 	mockdal "github.com/apache/incubator-devlake/mocks/core/dal"
 	mockplugin "github.com/apache/incubator-devlake/mocks/core/plugin"
 	"github.com/apache/incubator-devlake/plugins/tapd/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"testing"
 )
 
 func TestMakeDataSourcePipelinePlanV200(t *testing.T) {
 	mockMeta := mockplugin.NewPluginMeta(t)
 	mockMeta.On("RootPkgPath").Return("github.com/apache/incubator-devlake/plugins/tapd")
+	mockMeta.On("Name").Return("dummy").Maybe()
 	err := plugin.RegisterPlugin("tapd", mockMeta)
 	assert.Nil(t, err)
 	bs := &plugin.BlueprintScopeV200{
-		Entities: []string{"TICKET"},
-		Id:       "10",
+		Id: "10",
 	}
 	syncPolicy := &plugin.BlueprintSyncPolicy{}
 	bpScopes := make([]*plugin.BlueprintScopeV200, 0)
 	bpScopes = append(bpScopes, bs)
 	plan := make(plugin.PipelinePlan, len(bpScopes))
+	mockBasicRes(t)
+
 	plan, err = makeDataSourcePipelinePlanV200(nil, plan, bpScopes, uint64(1), syncPolicy)
 	assert.Nil(t, err)
-	basicRes = NewMockBasicRes()
 	scopes, err := makeScopesV200(bpScopes, uint64(1))
 	assert.Nil(t, err)
 
@@ -69,30 +72,36 @@ func TestMakeDataSourcePipelinePlanV200(t *testing.T) {
 			Id: "tapd:TapdWorkspace:1:10",
 		},
 		Name: "a",
+		Type: "scrum",
 	}
 
 	expectScopes = append(expectScopes, tapdBoard)
 	assert.Equal(t, expectScopes, scopes)
 }
 
-// NewMockBasicRes FIXME ...
-func NewMockBasicRes() *mockcontext.BasicRes {
+func mockBasicRes(t *testing.T) {
 	tapdWorkspace := &models.TapdWorkspace{
 		ConnectionId: 1,
 		Id:           10,
 		Name:         "a",
 	}
-
-	mockRes := new(mockcontext.BasicRes)
-	mockDal := new(mockdal.Dal)
-
-	mockDal.On("First", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
-		dst := args.Get(0).(*models.TapdWorkspace)
-		*dst = *tapdWorkspace
-	}).Return(nil).Once()
-
-	mockRes.On("GetDal").Return(mockDal)
-	mockRes.On("GetConfig", mock.Anything).Return("")
-
-	return mockRes
+	scopeConfig := &models.TapdScopeConfig{
+		ScopeConfig: common.ScopeConfig{
+			Entities: []string{plugin.DOMAIN_TYPE_TICKET},
+		},
+	}
+	// Refresh Global Variables and set the sql mock
+	mockRes := unithelper.DummyBasicRes(func(mockDal *mockdal.Dal) {
+		mockDal.On("First", mock.AnythingOfType("*models.TapdScopeConfig"), mock.Anything).Run(func(args mock.Arguments) {
+			dst := args.Get(0).(*models.TapdScopeConfig)
+			*dst = *scopeConfig
+		}).Return(nil)
+		mockDal.On("First", mock.AnythingOfType("*models.TapdWorkspace"), mock.Anything).Run(func(args mock.Arguments) {
+			dst := args.Get(0).(*models.TapdWorkspace)
+			*dst = *tapdWorkspace
+		}).Return(nil)
+	})
+	p := mockplugin.NewPluginMeta(t)
+	p.On("Name").Return("dummy").Maybe()
+	Init(mockRes, p)
 }

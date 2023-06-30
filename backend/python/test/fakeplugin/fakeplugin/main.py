@@ -18,9 +18,9 @@ from datetime import datetime
 from typing import Optional
 import json
 
-from sqlmodel import Field
+from pydantic import SecretStr
 
-from pydevlake import Plugin, Connection, TransformationRule, Stream, ToolModel, ToolScope, RemoteScopeGroup, DomainType
+from pydevlake import Plugin, Connection, Stream, ToolModel, ToolScope, ScopeConfig, RemoteScopeGroup, DomainType, Field, TestConnectionResult
 from pydevlake.domain_layer.devops import CicdScope, CICDPipeline, CICDStatus, CICDResult, CICDType
 
 VALID_TOKEN = "this_is_a_valid_token"
@@ -48,10 +48,7 @@ class FakePipelineStream(Stream):
             yield json.loads(p.json()), {}
 
     def convert(self, pipeline: FakePipeline, ctx):
-        if ctx.transformation_rule:
-            env = ctx.transformation_rule.env
-        else:
-            env = "unknown"
+        env = ctx.scope_config.env
         yield CICDPipeline(
             name=pipeline.id,
             status=self.convert_status(pipeline.state),
@@ -96,14 +93,14 @@ class FakePipelineStream(Stream):
 
 
 class FakeConnection(Connection):
-    token: str
+    token: SecretStr
 
 
 class FakeProject(ToolScope, table=True):
     url: str
 
 
-class FakeTransformationRule(TransformationRule):
+class FakeScopeConfig(ScopeConfig):
     env: str
 
 
@@ -117,8 +114,8 @@ class FakePlugin(Plugin):
         return FakeProject
 
     @property
-    def transformation_rule_type(self):
-        return FakeTransformationRule
+    def scope_config_type(self):
+        return FakeScopeConfig
 
     def domain_scopes(self, project: FakeProject):
         project_name = "_".join(project.name.lower().split(" "))
@@ -149,8 +146,17 @@ class FakePlugin(Plugin):
         ]
 
     def test_connection(self, connection: FakeConnection):
-        if connection.token != VALID_TOKEN:
-            raise Exception("Invalid token")
+        if connection.token.get_secret_value() != VALID_TOKEN:
+            return TestConnectionResult(
+                success=False,
+                message="Invalid token",
+                status=401
+            )
+        return TestConnectionResult(
+            success=True,
+            message="Connection successful",
+            status=200
+        )
 
     @property
     def streams(self):

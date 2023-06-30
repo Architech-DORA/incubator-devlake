@@ -18,10 +18,15 @@ limitations under the License.
 package tasks
 
 import (
+	"fmt"
+	"net/http"
+	"net/url"
+	"strings"
+
 	"github.com/apache/incubator-devlake/core/errors"
+	"github.com/apache/incubator-devlake/core/plugin"
 	"github.com/apache/incubator-devlake/helpers/pluginhelper/api"
 	"github.com/apache/incubator-devlake/plugins/zentao/models"
-	"net/http"
 )
 
 func GetTotalPagesFromResponse(res *http.Response, args *api.ApiCollectorArgs) (int, errors.Error) {
@@ -49,4 +54,159 @@ func getAccountName(account *models.ZentaoAccount) string {
 		return account.Realname
 	}
 	return ""
+}
+
+// get the Priority string for zentao
+func getPriority(pri int) string {
+	return fmt.Sprintf("%d", pri)
+	/*
+		switch pri {
+		case 2:
+			return "High"
+		case 3:
+			return "Middle"
+		case 4:
+			return "Low"
+		default:
+			if pri <= 1 {
+				return "VeryHigh"
+			}
+			if pri >= 5 {
+				return "VeryLow"
+			}
+		}
+		return "Error"
+	*/
+}
+
+func getOriginalProject(data *ZentaoTaskData) string {
+	if data.Options.ProjectId != 0 {
+		return data.ProjectName
+	}
+	if data.Options.ProductId != 0 {
+		return data.ProductName
+	}
+	return ""
+}
+
+// getBugStatusMapping creates a map of original status values to bug issue standard status values
+// based on the provided ZentaoTaskData. It returns the created map.
+func getBugStatusMapping(data *ZentaoTaskData) map[string]string {
+	stdStatusMappings := make(map[string]string)
+	if data.Options.ScopeConfigs == nil {
+		return stdStatusMappings
+	}
+	mapping := data.Options.ScopeConfigs.BugStatusMappings
+	// Map original status values to standard status values
+	for userStatus, stdStatus := range mapping {
+		stdStatusMappings[userStatus] = strings.ToUpper(stdStatus)
+	}
+	return stdStatusMappings
+}
+
+// getStoryStatusMapping creates a map of original status values to story issue standard status values
+// based on the provided ZentaoTaskData. It returns the created map.
+func getStoryStatusMapping(data *ZentaoTaskData) map[string]string {
+	stdStatusMappings := make(map[string]string)
+	if data.Options.ScopeConfigs == nil {
+		return stdStatusMappings
+	}
+	mapping := data.Options.ScopeConfigs.StoryStatusMappings
+	// Map original status values to standard status values
+	for userStatus, stdStatus := range mapping {
+		stdStatusMappings[userStatus] = strings.ToUpper(stdStatus)
+	}
+	return stdStatusMappings
+}
+
+// getTaskStatusMapping creates a map of original status values to task issue standard status values
+// based on the provided ZentaoTaskData. It returns the created map.
+func getTaskStatusMapping(data *ZentaoTaskData) map[string]string {
+	stdStatusMappings := make(map[string]string)
+	if data.Options.ScopeConfigs == nil {
+		return stdStatusMappings
+	}
+	mapping := data.Options.ScopeConfigs.TaskStatusMappings
+	// Map original status values to standard status values
+	for userStatus, stdStatus := range mapping {
+		stdStatusMappings[userStatus] = strings.ToUpper(stdStatus)
+	}
+	return stdStatusMappings
+}
+
+// getStdTypeMappings creates a map of user type to standard type based on the provided ZentaoTaskData.
+// It returns the created map.
+func getStdTypeMappings(data *ZentaoTaskData) map[string]string {
+	stdTypeMappings := make(map[string]string)
+	if data.Options.ScopeConfigs == nil {
+		return stdTypeMappings
+	}
+	mapping := data.Options.ScopeConfigs.TypeMappings
+	// Map user types to standard types
+	for userType, stdType := range mapping {
+		stdTypeMappings[userType] = strings.ToUpper(stdType)
+	}
+	return stdTypeMappings
+}
+
+// parseRepoUrl parses a repository URL and returns the host, namespace, and repository name.
+func parseRepoUrl(repoUrl string) (string, string, string, error) {
+	parsedUrl, err := url.Parse(repoUrl)
+	if err != nil {
+		return "", "", "", err
+	}
+
+	host := parsedUrl.Host
+	host = strings.TrimPrefix(host, "www.")
+	pathParts := strings.Split(parsedUrl.Path, "/")
+	if len(pathParts) < 3 {
+		return "", "", "", fmt.Errorf("invalid RepoUrl: %s", repoUrl)
+	}
+
+	namespace := strings.Join(pathParts[1:len(pathParts)-1], "/")
+	repoName := pathParts[len(pathParts)-1]
+	if repoName == "" {
+		return "", "", "", fmt.Errorf("invalid RepoUrl: %s (empty repository name)", repoUrl)
+	}
+
+	return host, namespace, repoName, nil
+}
+
+func ignoreHTTPStatus404(res *http.Response) errors.Error {
+	if res.StatusCode == http.StatusUnauthorized {
+		return errors.Unauthorized.New("authentication failed, please check your AccessToken")
+	}
+	if res.StatusCode == http.StatusNotFound {
+		return api.ErrIgnoreAndContinue
+	}
+	return nil
+}
+
+func RangeProductOneByOne(taskCtx plugin.SubTaskContext, callback func(taskCtx plugin.SubTaskContext) errors.Error) errors.Error {
+	data := taskCtx.GetData().(*ZentaoTaskData)
+
+	for id, name := range data.ProductList {
+		data.Options.ProductId = id
+		data.ProductName = name
+
+		err := callback(taskCtx)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func ScopeParams(cid uint64, projectId int64, productId int64) ZentaoApiParams {
+	param := ZentaoApiParams{
+		ConnectionId: cid,
+	}
+	if projectId != 0 {
+		param.ZentaoId = fmt.Sprintf("projects/%d", projectId)
+	} else {
+		param.ZentaoId = fmt.Sprintf("products/%d", productId)
+	}
+
+	return param
 }

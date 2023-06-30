@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"github.com/apache/incubator-devlake/core/context"
+	"github.com/apache/incubator-devlake/core/dal"
 	"github.com/apache/incubator-devlake/core/errors"
 	"github.com/apache/incubator-devlake/core/plugin"
 	"github.com/apache/incubator-devlake/core/runner"
@@ -34,13 +35,17 @@ import (
 )
 
 // make sure interface is implemented
-var _ plugin.PluginMeta = (*Zentao)(nil)
-var _ plugin.PluginInit = (*Zentao)(nil)
-var _ plugin.PluginTask = (*Zentao)(nil)
-var _ plugin.PluginApi = (*Zentao)(nil)
 
-// var _ plugin.CompositePluginBlueprintV200 = (*Zentao)(nil)
-var _ plugin.CloseablePluginTask = (*Zentao)(nil)
+var _ interface {
+	plugin.PluginMeta
+	plugin.PluginInit
+	plugin.PluginTask
+	plugin.PluginApi
+	//plugin.CompositePluginBlueprintV200
+	plugin.PluginModel
+	plugin.PluginSource
+	plugin.CloseablePluginTask
+} = (*Zentao)(nil)
 
 type Zentao struct{}
 
@@ -48,34 +53,106 @@ func (p Zentao) Description() string {
 	return "collect some Zentao data"
 }
 
+func (p Zentao) Name() string {
+	return "zentao"
+}
+
 func (p Zentao) Init(basicRes context.BasicRes) errors.Error {
-	api.Init(basicRes)
+	api.Init(basicRes, p)
+
 	return nil
+}
+
+func (p Zentao) GetTablesInfo() []dal.Tabler {
+	return []dal.Tabler{
+		&models.ZentaoAccount{},
+		&models.ZentaoBug{},
+		&models.ZentaoBugCommit{},
+		&models.ZentaoChangelog{},
+		&models.ZentaoChangelogDetail{},
+		&models.ZentaoDepartment{},
+		&models.ZentaoExecution{},
+		&models.ZentaoProduct{},
+		&models.ZentaoProject{},
+		&models.ZentaoRemoteDbAction{},
+		&models.ZentaoRemoteDbActionHistory{},
+		&models.ZentaoRemoteDbHistory{},
+		&models.ZentaoStory{},
+		&models.ZentaoStoryCommit{},
+		&models.ZentaoStoryRepoCommit{},
+		&models.ZentaoTask{},
+		&models.ZentaoTaskCommit{},
+		&models.ZentaoTaskRepoCommit{},
+		&models.ZentaoBugRepoCommit{},
+		&models.ZentaoConnection{},
+		&models.ZentaoScopeConfig{},
+	}
+}
+
+func (p Zentao) Connection() dal.Tabler {
+	return &models.ZentaoConnection{}
+}
+
+func (p Zentao) Scope() plugin.ToolLayerScope {
+	return &models.ZentaoProject{}
+}
+
+func (p Zentao) ScopeConfig() dal.Tabler {
+	return &models.ZentaoScopeConfig{}
 }
 
 func (p Zentao) SubTaskMetas() []plugin.SubTaskMeta {
 	return []plugin.SubTaskMeta{
-		tasks.ConvertProductMeta,
+		//tasks.ConvertProductMeta,
 		tasks.ConvertProjectMeta,
+
 		tasks.DBGetChangelogMeta,
-		tasks.CollectExecutionMeta,
-		tasks.ExtractExecutionMeta,
-		tasks.ConvertExecutionMeta,
-		tasks.CollectStoryMeta,
-		tasks.ExtractStoryMeta,
-		tasks.ConvertStoryMeta,
-		tasks.CollectBugMeta,
-		tasks.ExtractBugMeta,
-		tasks.ConvertBugMeta,
-		tasks.CollectTaskMeta,
-		tasks.ExtractTaskMeta,
-		tasks.ConvertTaskMeta,
+		tasks.ConvertChangelogMeta,
+
+		// both
 		tasks.CollectAccountMeta,
 		tasks.ExtractAccountMeta,
 		tasks.ConvertAccountMeta,
+
 		tasks.CollectDepartmentMeta,
 		tasks.ExtractDepartmentMeta,
 		tasks.ConvertDepartmentMeta,
+
+		// project
+		tasks.CollectExecutionMeta,
+		tasks.ExtractExecutionMeta,
+		tasks.ConvertExecutionMeta,
+
+		tasks.CollectTaskMeta,
+		tasks.ExtractTaskMeta,
+		tasks.ConvertTaskMeta,
+
+		tasks.CollectTaskCommitsMeta,
+		tasks.ExtractTaskCommitsMeta,
+		tasks.CollectTaskRepoCommitsMeta,
+		tasks.ExtractTaskRepoCommitsMeta,
+		tasks.ConvertTaskRepoCommitsMeta,
+
+		// product
+		tasks.CollectStoryMeta,
+		tasks.ExtractStoryMeta,
+		tasks.ConvertStoryMeta,
+
+		tasks.CollectBugMeta,
+		tasks.ExtractBugMeta,
+		tasks.ConvertBugMeta,
+
+		tasks.CollectStoryCommitsMeta,
+		tasks.ExtractStoryCommitsMeta,
+		tasks.CollectStoryRepoCommitsMeta,
+		tasks.ExtractStoryRepoCommitsMeta,
+		tasks.ConvertStoryRepoCommitsMeta,
+
+		tasks.CollectBugCommitsMeta,
+		tasks.ExtractBugCommitsMeta,
+		tasks.CollectBugRepoCommitsMeta,
+		tasks.ExtractBugRepoCommitsMeta,
+		tasks.ConvertBugRepoCommitsMeta,
 	}
 }
 
@@ -87,6 +164,7 @@ func (p Zentao) PrepareTaskData(taskCtx plugin.TaskContext, options map[string]i
 	connectionHelper := helper.NewConnectionHelper(
 		taskCtx,
 		nil,
+		p.Name(),
 	)
 	connection := &models.ZentaoConnection{}
 	err = connectionHelper.FirstById(connection, op.ConnectionId)
@@ -99,9 +177,24 @@ func (p Zentao) PrepareTaskData(taskCtx plugin.TaskContext, options map[string]i
 		return nil, errors.Default.Wrap(err, "unable to get Zentao API client instance: %v")
 	}
 
+	if op.ScopeConfigs == nil && op.ScopeConfigId != 0 {
+		var scopeConfig models.ZentaoScopeConfig
+		err = taskCtx.GetDal().First(&scopeConfig, dal.Where("id = ?", op.ScopeConfigId))
+		if err != nil && taskCtx.GetDal().IsErrorNotFound(err) {
+			return nil, errors.BadInput.Wrap(err, "fail to get ScopeConfigs")
+		}
+		op.ScopeConfigs, err = tasks.MakeScopeConfigs(scopeConfig)
+		if err != nil {
+			return nil, errors.BadInput.Wrap(err, "fail to make ScopeConfigs")
+		}
+	}
+
 	data := &tasks.ZentaoTaskData{
-		Options:   op,
-		ApiClient: apiClient,
+		Options:     op,
+		ApiClient:   apiClient,
+		ProductList: map[int64]string{},
+		StoryList:   map[int64]int64{},
+		FromBugList: map[int]bool{},
 	}
 
 	if connection.DbUrl != "" {
@@ -157,21 +250,41 @@ func (p Zentao) ApiResources() map[string]map[string]plugin.ApiResourceHandler {
 			"PATCH":  api.PatchConnection,
 			"DELETE": api.DeleteConnection,
 		},
-		"connections/:connectionId/product/scopes": {
-			"PUT": api.PutProductScope,
+		/*
+			"connections/:connectionId/product/scopes": {
+				"PUT": api.PutProductScope,
+			},
+			"connections/:connectionId/project/scopes": {
+				"PUT": api.PutProjectScope,
+			},
+			"connections/:connectionId/scopes/product/:scopeId": {
+				"GET":    api.GetProductScope,
+				"PATCH":  api.UpdateProductScope,
+				"DELETE": api.DeleteProductScope,
+			},
+			"connections/:connectionId/scopes/project/:scopeId": {
+				"GET":    api.GetProjectScope,
+				"PATCH":  api.UpdateProjectScope,
+				"DELETE": api.DeleteProjectScope,
+			},
+		*/
+		"connections/:connectionId/scopes": {
+			"PUT": api.PutScope,
+			"GET": api.GetScopeList,
 		},
-		"connections/:connectionId/project/scopes": {
-			"PUT": api.PutProjectScope,
+		"connections/:connectionId/scopes/:scopeId": {
+			"GET":    api.GetScope,
+			"PATCH":  api.UpdateScope,
+			"DELETE": api.DeleteScope,
 		},
-		"connections/:connectionId/scopes/product/:scopeId": {
-			"GET":    api.GetProductScope,
-			"PATCH":  api.UpdateProductScope,
-			"DELETE": api.DeleteProductScope,
+		"connections/:connectionId/scope-configs": {
+			"POST": api.CreateScopeConfig,
+			"GET":  api.GetScopeConfigList,
 		},
-		"connections/:connectionId/scopes/project/:scopeId": {
-			"GET":    api.GetProjectScope,
-			"PATCH":  api.UpdateProjectScope,
-			"DELETE": api.DeleteProjectScope,
+		"connections/:connectionId/scope-configs/:id": {
+			"PATCH":  api.UpdateScopeConfig,
+			"GET":    api.GetScopeConfig,
+			"DELETE": api.DeleteScopeConfig,
 		},
 		"connections/:connectionId/remote-scopes": {
 			"GET": api.RemoteScopes,

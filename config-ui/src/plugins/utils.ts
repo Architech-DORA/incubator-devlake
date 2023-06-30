@@ -16,21 +16,53 @@
  *
  */
 
-export const getPluginId = (plugin: string) => {
+import PluginIcon from '@/images/plugin-icon.svg';
+
+import { PluginConfig } from './config';
+import { PluginConfigType, PluginType } from './types';
+
+export const getPluginScopeId = (plugin: string, scope: any) => {
   switch (plugin) {
     case 'github':
-      return 'githubId';
+      return `${scope.githubId}`;
     case 'jira':
-      return 'boardId';
+      return `${scope.boardId}`;
     case 'gitlab':
-      return 'gitlabId';
+      return `${scope.gitlabId}`;
     case 'jenkins':
-      return 'jobFullName';
+      return `${scope.jobFullName}`;
     case 'bitbucket':
-      return 'bitbucketId';
+      return `${scope.bitbucketId}`;
     case 'sonarqube':
-      return 'projectKey';
+      return `${scope.projectKey}`;
+    case 'zentao':
+      return scope.type === 'project' ? `projects/${scope.id}` : `products/${scope.id}`;
     default:
-      return 'id';
+      return `${scope.id}`;
   }
+};
+
+export const getPluginConfig = (name: string): PluginConfigType => {
+  let pluginConfig = PluginConfig.find((plugin) => plugin.plugin === name) as PluginConfigType;
+  if (!pluginConfig) {
+    pluginConfig = {
+      type: PluginType.Pipeline,
+      plugin: name,
+      name: name,
+      icon: PluginIcon,
+      sort: 101,
+      connection: {
+        docLink: '',
+        initialValues: {},
+        fields: [],
+      },
+      dataScope: {
+        millerColumns: {
+          title: '',
+          subTitle: '',
+        },
+      },
+    };
+  }
+  return pluginConfig;
 };

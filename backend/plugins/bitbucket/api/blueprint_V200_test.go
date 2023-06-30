@@ -26,7 +26,7 @@ import (
 	"github.com/apache/incubator-devlake/core/models/domainlayer/ticket"
 	"github.com/apache/incubator-devlake/core/plugin"
 	helper "github.com/apache/incubator-devlake/helpers/pluginhelper/api"
-	mockcontext "github.com/apache/incubator-devlake/mocks/core/context"
+	"github.com/apache/incubator-devlake/helpers/unithelper"
 	mockdal "github.com/apache/incubator-devlake/mocks/core/dal"
 	mockplugin "github.com/apache/incubator-devlake/mocks/core/plugin"
 	"github.com/apache/incubator-devlake/plugins/bitbucket/models"
@@ -56,13 +56,14 @@ func TestMakeDataSourcePipelinePlanV200(t *testing.T) {
 	}
 	mockMeta := mockplugin.NewPluginMeta(t)
 	mockMeta.On("RootPkgPath").Return("github.com/apache/incubator-devlake/plugins/bitbucket")
+	mockMeta.On("Name").Return("bitbucket").Maybe()
 	err := plugin.RegisterPlugin("bitbucket", mockMeta)
 	assert.Nil(t, err)
 	// Refresh Global Variables and set the sql mock
-	basicRes = NewMockBasicRes()
+	mockBasicRes(t)
+
 	bs := &plugin.BlueprintScopeV200{
-		Entities: []string{"CODE", "TICKET"},
-		Id:       "1",
+		Id: "1",
 	}
 	bpScopes := make([]*plugin.BlueprintScopeV200, 0)
 	bpScopes = append(bpScopes, bs)
@@ -71,7 +72,6 @@ func TestMakeDataSourcePipelinePlanV200(t *testing.T) {
 	plan := make(plugin.PipelinePlan, len(bpScopes))
 	plan, err = makeDataSourcePipelinePlanV200(nil, plan, bpScopes, connection, syncPolicy)
 	assert.Nil(t, err)
-	basicRes = NewMockBasicRes()
 	scopes, err := makeScopesV200(bpScopes, connection)
 	assert.Nil(t, err)
 
@@ -90,6 +90,7 @@ func TestMakeDataSourcePipelinePlanV200(t *testing.T) {
 				Options: map[string]interface{}{
 					"proxy":  "",
 					"repoId": "bitbucket:BitbucketRepo:1:likyh/likyhphp",
+					"name":   "likyh/likyhphp",
 					"url":    "https://Username:Password@this_is_cloneUrl",
 				},
 			},
@@ -112,14 +113,14 @@ func TestMakeDataSourcePipelinePlanV200(t *testing.T) {
 		DomainEntity: domainlayer.DomainEntity{
 			Id: "bitbucket:BitbucketRepo:1:likyh/likyhphp",
 		},
-		Name: "test/testRepo",
+		Name: "likyh/likyhphp",
 	}
 
 	scopeTicket := &ticket.Board{
 		DomainEntity: domainlayer.DomainEntity{
 			Id: "bitbucket:BitbucketRepo:1:likyh/likyhphp",
 		},
-		Name:        "test/testRepo",
+		Name:        "likyh/likyhphp",
 		Description: "",
 		Url:         "",
 		CreatedDate: nil,
@@ -130,8 +131,7 @@ func TestMakeDataSourcePipelinePlanV200(t *testing.T) {
 	assert.Equal(t, expectScopes, scopes)
 }
 
-// NewMockBasicRes FIXME ...
-func NewMockBasicRes() *mockcontext.BasicRes {
+func mockBasicRes(t *testing.T) {
 	testBitbucketRepo := &models.BitbucketRepo{
 		ConnectionId:  1,
 		BitbucketId:   "likyh/likyhphp",
@@ -142,6 +142,7 @@ func NewMockBasicRes() *mockcontext.BasicRes {
 
 	testScopeConfig := &models.BitbucketScopeConfig{
 		ScopeConfig: common.ScopeConfig{
+			Entities: []string{"CODE", "TICKET"},
 			Model: common.Model{
 				ID: 1,
 			},
@@ -154,21 +155,19 @@ func NewMockBasicRes() *mockcontext.BasicRes {
 			"tagsOrder":   "reverse semver",
 		},
 	}
-	mockRes := new(mockcontext.BasicRes)
-	mockDal := new(mockdal.Dal)
+	// Refresh Global Variables and set the sql mock
+	mockRes := unithelper.DummyBasicRes(func(mockDal *mockdal.Dal) {
+		mockDal.On("First", mock.AnythingOfType("*models.BitbucketRepo"), mock.Anything).Run(func(args mock.Arguments) {
+			dst := args.Get(0).(*models.BitbucketRepo)
+			*dst = *testBitbucketRepo
+		}).Return(nil)
 
-	mockDal.On("First", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
-		dst := args.Get(0).(*models.BitbucketRepo)
-		*dst = *testBitbucketRepo
-	}).Return(nil).Once()
-
-	mockDal.On("First", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
-		dst := args.Get(0).(*models.BitbucketScopeConfig)
-		*dst = *testScopeConfig
-	}).Return(nil).Once()
-
-	mockRes.On("GetDal").Return(mockDal)
-	mockRes.On("GetConfig", mock.Anything).Return("")
-
-	return mockRes
+		mockDal.On("First", mock.AnythingOfType("*models.BitbucketScopeConfig"), mock.Anything).Run(func(args mock.Arguments) {
+			dst := args.Get(0).(*models.BitbucketScopeConfig)
+			*dst = *testScopeConfig
+		}).Return(nil)
+	})
+	p := mockplugin.NewPluginMeta(t)
+	p.On("Name").Return("dummy").Maybe()
+	Init(mockRes, p)
 }

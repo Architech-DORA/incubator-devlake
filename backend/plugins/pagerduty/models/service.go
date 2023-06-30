@@ -19,17 +19,39 @@ package models
 
 import (
 	"github.com/apache/incubator-devlake/core/models/common"
+	"github.com/apache/incubator-devlake/core/plugin"
 )
+
+type PagerDutyParams struct {
+	ConnectionId uint64
+	ScopeId      string
+}
 
 type Service struct {
 	common.NoPKModel
-	ConnectionId         uint64 `json:"connection_id" mapstructure:"connectionId,omitempty" gorm:"primaryKey" `
-	Url                  string `json:"url" mapstructure:"url"`
-	Id                   string `json:"id" mapstructure:"id" gorm:"primaryKey" `
-	TransformationRuleId uint64 `json:"transformation_rule_id" mapstructure:"transformation_rule_id,omitempty"` //keys to PagerdutyTransformationRules.ID
-	Name                 string `json:"name" mapstructure:"name"`
+	ConnectionId uint64 `json:"connection_id" mapstructure:"connectionId,omitempty" gorm:"primaryKey" `
+	Id           string `json:"id" mapstructure:"id" gorm:"primaryKey;autoIncrement:false" `
+	Url          string `json:"url" mapstructure:"url"`
+	Name         string `json:"name" mapstructure:"name"`
 }
 
-func (Service) TableName() string {
+func (s Service) ScopeId() string {
+	return s.Name
+}
+
+func (s Service) ScopeName() string {
+	return s.Name
+}
+
+func (s Service) ScopeParams() interface{} {
+	return &PagerDutyParams{
+		ConnectionId: s.ConnectionId,
+		ScopeId:      s.Id,
+	}
+}
+
+func (s Service) TableName() string {
 	return "_tool_pagerduty_services"
 }
+
+var _ plugin.ToolLayerScope = (*Service)(nil)

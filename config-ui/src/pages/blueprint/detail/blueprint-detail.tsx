@@ -17,87 +17,59 @@
  */
 
 import { useState } from 'react';
-import type { TabId } from '@blueprintjs/core';
-import { Tabs, Tab, Switch } from '@blueprintjs/core';
+import { Tabs, Tab } from '@blueprintjs/core';
+import useUrlState from '@ahooksjs/use-url-state';
 
 import { PageLoading } from '@/components';
 import { useRefreshData } from '@/hooks';
-import { operator } from '@/utils';
 
-import { Configuration } from './panel/configuration';
-import { Status } from './panel/status';
+import { FromEnum } from '../types';
+
+import { ConfigurationPanel } from './configuration-panel';
+import { StatusPanel } from './status-panel';
 import * as API from './api';
 import * as S from './styled';
 
 interface Props {
   id: ID;
+  from: FromEnum;
 }
 
-export const BlueprintDetail = ({ id }: Props) => {
-  const [activeTab, setActiveTab] = useState<TabId>('configuration');
+export const BlueprintDetail = ({ id, from }: Props) => {
   const [version, setVersion] = useState(1);
-  const [operating, setOperating] = useState(false);
 
-  const { ready, data } = useRefreshData(
-    async () => Promise.all([API.getBlueprint(id), API.getBlueprintPipelines(id)]),
-    [version],
-  );
+  const [query, setQuery] = useUrlState({ tab: 'status' });
+
+  const { ready, data } = useRefreshData(async () => {
+    const [bpRes, pipelineRes] = await Promise.all([API.getBlueprint(id), API.getBlueprintPipelines(id)]);
+    return [bpRes, pipelineRes.pipelines[0]];
+  }, [version]);
+
+  const handleRefresh = () => {
+    setVersion((v) => v + 1);
+    setQuery({ tab: 'status' });
+  };
 
   if (!ready || !data) {
     return <PageLoading />;
   }
 
-  const [blueprint, pipelines] = data;
-
-  const handleUpdate = async (payload: any, callback?: () => void) => {
-    const [success] = await operator(
-      () =>
-        API.updateBlueprint(id, {
-          ...blueprint,
-          ...payload,
-        }),
-      {
-        setOperating,
-      },
-    );
-
-    if (success) {
-      setVersion((v) => v + 1);
-      callback?.();
-    }
-  };
-
-  const handleRun = async () => {
-    const [success] = await operator(() => API.runBlueprint(id), {
-      setOperating,
-    });
-
-    if (success) {
-      setVersion((v) => v + 1);
-    }
-  };
+  const [blueprint, lastPipeline] = data;
 
   return (
     <S.Wrapper>
-      <Tabs selectedTabId={activeTab} onChange={(at) => setActiveTab(at)}>
+      <Tabs selectedTabId={query.tab} onChange={(tab) => setQuery({ tab })}>
         <Tab
           id="status"
           title="Status"
           panel={
-            <Status blueprint={blueprint} pipelineId={pipelines?.[0]?.id} operating={operating} onRun={handleRun} />
+            <StatusPanel from={from} blueprint={blueprint} pipelineId={lastPipeline?.id} onRefresh={handleRefresh} />
           }
         />
         <Tab
           id="configuration"
           title="Configuration"
-          panel={<Configuration blueprint={blueprint} operating={operating} onUpdate={handleUpdate} />}
-        />
-        <Tabs.Expander />
-        <Switch
-          style={{ marginBottom: 0 }}
-          label="Blueprint Enabled"
-          checked={blueprint.enable}
-          onChange={(e) => handleUpdate({ enable: (e.target as HTMLInputElement).checked })}
+          panel={<ConfigurationPanel from={from} blueprint={blueprint} onRefresh={handleRefresh} />}
         />
       </Tabs>
     </S.Wrapper>

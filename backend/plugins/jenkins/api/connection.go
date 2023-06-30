@@ -19,6 +19,7 @@ package api
 
 import (
 	"context"
+	"github.com/apache/incubator-devlake/helpers/pluginhelper/services"
 	"net/http"
 	"strings"
 
@@ -123,6 +124,7 @@ func PatchConnection(input *plugin.ApiResourceInput) (*plugin.ApiResourceOutput,
 // @Tags plugins/jenkins
 // @Success 200  {object} models.JenkinsConnection
 // @Failure 400  {string} errcode.Error "Bad Request"
+// @Failure 409  {object} services.BlueprintProjectPairs "References exist to this connection"
 // @Failure 500  {string} errcode.Error "Internal Error"
 // @Router /plugins/jenkins/connections/{connectionId} [DELETE]
 func DeleteConnection(input *plugin.ApiResourceInput) (*plugin.ApiResourceOutput, errors.Error) {
@@ -131,7 +133,11 @@ func DeleteConnection(input *plugin.ApiResourceInput) (*plugin.ApiResourceOutput
 	if err != nil {
 		return nil, err
 	}
-	err = connectionHelper.Delete(connection)
+	var refs *services.BlueprintProjectPairs
+	refs, err = connectionHelper.Delete(connection)
+	if err != nil {
+		return &plugin.ApiResourceOutput{Body: refs, Status: err.GetType().GetHttpCode()}, err
+	}
 	return &plugin.ApiResourceOutput{Body: connection}, err
 }
 
@@ -166,47 +172,4 @@ func GetConnection(input *plugin.ApiResourceInput) (*plugin.ApiResourceOutput, e
 		return nil, err
 	}
 	return &plugin.ApiResourceOutput{Body: connection}, err
-}
-
-// @Summary blueprints setting for jenkins
-// @Description blueprint setting for jenkins
-// @Tags plugins/jenkins
-// @Accept application/json
-// @Param blueprint body JenkinsBlueprintSetting true "json"
-// @Router /blueprints/jenkins/blueprint-setting [post]
-func PostJenkinsBluePrint(input *plugin.ApiResourceInput) (*plugin.ApiResourceOutput, errors.Error) {
-	blueprint := &JenkinsBlueprintSetting{}
-	return &plugin.ApiResourceOutput{Body: blueprint, Status: http.StatusOK}, nil
-}
-
-type JenkinsBlueprintSetting []struct {
-	Version     string `json:"version"`
-	Connections []struct {
-		Plugin       string `json:"plugin"`
-		ConnectionID int    `json:"connectionId"`
-		Scope        []struct {
-			Options struct {
-			} `json:"options"`
-			Entities []string `json:"entities"`
-		} `json:"scopes"`
-	} `json:"connections"`
-}
-
-// @Summary pipelines plan for jenkins
-// @Description pipelines plan for jenkins
-// @Tags plugins/jenkins
-// @Accept application/json
-// @Param blueprint body JenkinsPipelinePlan true "json"
-// @Router /pipelines/jenkins/pipeline-plan [post]
-func PostJenkinsPipeline(input *plugin.ApiResourceInput) (*plugin.ApiResourceOutput, errors.Error) {
-	blueprint := &JenkinsPipelinePlan{}
-	return &plugin.ApiResourceOutput{Body: blueprint, Status: http.StatusOK}, nil
-}
-
-type JenkinsPipelinePlan [][]struct {
-	Plugin   string   `json:"plugin"`
-	Subtasks []string `json:"subtasks"`
-	Options  struct {
-		ConnectionID int `json:"connectionId"`
-	} `json:"options"`
 }

@@ -16,7 +16,7 @@
  *
  */
 
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import dayjs from 'dayjs';
 import { Checkbox, FormGroup, InputGroup, Radio, RadioGroup } from '@blueprintjs/core';
 
@@ -57,7 +57,7 @@ export const SyncPolicy = ({
     const value = (e.target as HTMLInputElement).value;
     if (value === 'manual') {
       onChangeIsManual(true);
-    } else if (value === 'custom') {
+    } else if (!value) {
       onChangeIsManual(false);
       onChangeCronConfig('* * * * *');
     } else {
@@ -86,7 +86,7 @@ export const SyncPolicy = ({
               <Radio key={value} label={`${label} ${subLabel}`} value={value} />
             ))}
           </RadioGroup>
-          {cron.value === 'custom' && (
+          {!cron.value && (
             <>
               <S.Input>
                 <FormGroup label="Minute">

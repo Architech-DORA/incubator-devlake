@@ -21,23 +21,25 @@ import { useState, useEffect, useMemo } from 'react';
 export interface UseRowSelectionProps<T> {
   dataSource: T[];
   rowSelection?: {
-    rowKey: string;
+    rowKey?: ID;
+    getRowKey?: (data: T) => ID;
     type?: 'checkbox' | 'radio';
-    selectedRowKeys?: string[];
-    onChange?: (selectedRowKeys: string[]) => void;
+    selectedRowKeys?: ID[];
+    onChange?: (selectedRowKeys: ID[]) => void;
   };
 }
 
 export const useRowSelection = <T>({ dataSource, rowSelection }: UseRowSelectionProps<T>) => {
-  const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
+  const [selectedKeys, setSelectedKeys] = useState<ID[]>([]);
 
   const {
-    rowKey = 'key',
+    rowKey = 'id',
+    getRowKey = (data: T) => (data as any)[rowKey],
     type = 'checkbox',
     selectedRowKeys,
     onChange,
   } = {
-    rowKey: 'key',
+    rowKey: 'id',
     type: 'checkbox',
     ...rowSelection,
   };
@@ -47,8 +49,8 @@ export const useRowSelection = <T>({ dataSource, rowSelection }: UseRowSelection
   }, [selectedRowKeys]);
 
   const handleChecked = (data: T) => {
-    const key = (data as any)[rowKey];
-    let result: string[] = selectedKeys;
+    const key = getRowKey(data);
+    let result: ID[] = selectedKeys;
 
     switch (true) {
       case !selectedKeys.includes(key) && type === 'radio':
@@ -69,7 +71,7 @@ export const useRowSelection = <T>({ dataSource, rowSelection }: UseRowSelection
     let result: string[] = [];
 
     if (selectedKeys.length !== dataSource.length) {
-      result = dataSource.map((data: any) => data[rowKey]);
+      result = dataSource.map(getRowKey);
     }
 
     onChange ? onChange(result) : setSelectedKeys(result);
@@ -82,7 +84,7 @@ export const useRowSelection = <T>({ dataSource, rowSelection }: UseRowSelection
       getCheckedAll: () => dataSource.length === selectedKeys.length,
       onCheckedAll: handleCheckedAll,
       getChecked: (data: T) => {
-        return selectedKeys.includes((data as any)[rowKey]);
+        return selectedKeys.includes(getRowKey(data));
       },
       onChecked: handleChecked,
     }),

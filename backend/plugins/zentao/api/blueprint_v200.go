@@ -18,11 +18,9 @@ limitations under the License.
 package api
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
-	"github.com/apache/incubator-devlake/core/dal"
 	"github.com/apache/incubator-devlake/core/errors"
 	"github.com/apache/incubator-devlake/core/models/domainlayer"
 	"github.com/apache/incubator-devlake/core/models/domainlayer/didgen"
@@ -32,11 +30,9 @@ import (
 	helper "github.com/apache/incubator-devlake/helpers/pluginhelper/api"
 	"github.com/apache/incubator-devlake/plugins/zentao/models"
 	"github.com/apache/incubator-devlake/plugins/zentao/tasks"
-	"github.com/go-playground/validator/v10"
 )
 
 func MakeDataSourcePipelinePlanV200(subtaskMetas []plugin.SubTaskMeta, connectionId uint64, bpScopes []*plugin.BlueprintScopeV200, syncPolicy *plugin.BlueprintSyncPolicy) (plugin.PipelinePlan, []plugin.Scope, errors.Error) {
-	connectionHelper := helper.NewConnectionHelper(basicRes, validator.New())
 	// get the connection info for url
 	connection := &models.ZentaoConnection{}
 	err := connectionHelper.FirstById(connection, connectionId)
@@ -60,7 +56,6 @@ func makePipelinePlanV200(
 	connection *models.ZentaoConnection,
 	syncPolicy *plugin.BlueprintSyncPolicy,
 ) (plugin.PipelinePlan, []plugin.Scope, errors.Error) {
-	var err errors.Error
 	domainScopes := make([]plugin.Scope, 0)
 	for i, bpScope := range bpScopes {
 		stage := plan[i]
@@ -72,47 +67,48 @@ func makePipelinePlanV200(
 			ConnectionId: connection.ID,
 		}
 
-		scopeType := strings.Split(bpScope.Id, `/`)[0]
+		//scopeType := strings.Split(bpScope.Id, `/`)[0]
 		scopeId := strings.Split(bpScope.Id, `/`)[1]
-		if scopeType == `project` {
-			scope := &models.ZentaoProject{}
-			// get repo from db
-			err = basicRes.GetDal().First(scope, dal.Where(`connection_id = ? AND id = ?`, connection.ID, scopeId))
-			if err != nil {
-				return nil, nil, errors.Default.Wrap(err, fmt.Sprintf("fail to find zentao project %s", bpScope.Id))
-			}
-			op.ProjectId = scope.Id
 
-			if utils.StringsContains(bpScope.Entities, plugin.DOMAIN_TYPE_TICKET) {
-				scopeTicket := &ticket.Board{
-					DomainEntity: domainlayer.DomainEntity{
-						Id: didgen.NewDomainIdGenerator(&models.ZentaoProject{}).Generate(connection.ID, scope.Id),
-					},
-					Name: scope.Name,
-					Type: scope.Type,
-				}
-				domainScopes = append(domainScopes, scopeTicket)
-			}
-		} else {
-			scope := &models.ZentaoProduct{}
-			// get repo from db
-			err = basicRes.GetDal().First(scope, dal.Where(`connection_id = ? AND id = ?`, connection.ID, scopeId))
-			if err != nil {
-				return nil, nil, errors.Default.Wrap(err, fmt.Sprintf("fail to find zentao product %s", bpScope.Id))
-			}
-			op.ProductId = scope.Id
+		var entities []string
 
-			if utils.StringsContains(bpScope.Entities, plugin.DOMAIN_TYPE_TICKET) {
-				scopeTicket := &ticket.Board{
-					DomainEntity: domainlayer.DomainEntity{
-						Id: didgen.NewDomainIdGenerator(&models.ZentaoProduct{}).Generate(connection.ID, scope.Id),
-					},
-					Name: scope.Name,
-					Type: scope.Type,
-				}
-				domainScopes = append(domainScopes, scopeTicket)
-			}
+		//if scopeType == `project` {
+		project, scopeConfig, err := projectScopeHelper.DbHelper().GetScopeAndConfig(connection.ID, scopeId)
+		if err != nil {
+			return nil, nil, err
 		}
+		op.ProjectId = project.Id
+		entities = scopeConfig.Entities
+
+		if utils.StringsContains(entities, plugin.DOMAIN_TYPE_TICKET) {
+			scopeTicket := &ticket.Board{
+				DomainEntity: domainlayer.DomainEntity{
+					Id: didgen.NewDomainIdGenerator(&models.ZentaoProject{}).Generate(connection.ID, project.Id),
+				},
+				Name: project.Name,
+				Type: project.Type,
+			}
+			domainScopes = append(domainScopes, scopeTicket)
+		}
+		/*} else {
+			product, scopeConfig, err := productScopeHelper.DbHelper().GetScopeAndConfig(connection.ID, scopeId)
+			if err != nil {
+				return nil, nil, err
+			}
+			op.ProductId = product.Id
+			entities = scopeConfig.Entities
+
+			if utils.StringsContains(entities, plugin.DOMAIN_TYPE_TICKET) {
+				scopeTicket := &ticket.Board{
+					DomainEntity: domainlayer.DomainEntity{
+						Id: didgen.NewDomainIdGenerator(&models.ZentaoProduct{}).Generate(connection.ID, product.Id),
+					},
+					Name: product.Name,
+					Type: product.Type,
+				}
+				domainScopes = append(domainScopes, scopeTicket)
+			}
+		}*/
 
 		if syncPolicy.TimeAfter != nil {
 			op.TimeAfter = syncPolicy.TimeAfter.Format(time.RFC3339)
@@ -122,7 +118,7 @@ func makePipelinePlanV200(
 			return nil, nil, err
 		}
 
-		subtasks, err := helper.MakePipelinePlanSubtasks(subtaskMetas, bpScope.Entities)
+		subtasks, err := helper.MakePipelinePlanSubtasks(subtaskMetas, entities)
 		if err != nil {
 			return nil, nil, err
 		}

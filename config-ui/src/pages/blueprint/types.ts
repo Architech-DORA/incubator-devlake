@@ -21,7 +21,13 @@ export enum ModeEnum {
   normal = 'NORMAL',
 }
 
+export enum FromEnum {
+  project = 'PROJECT',
+  blueprint = 'BLUEPRINT',
+}
+
 export type BlueprintType = {
+  projectName: string;
   id: ID;
   enable: boolean;
   name: string;
@@ -38,7 +44,6 @@ export type BlueprintType = {
       connectionId: ID;
       scopes?: Array<{
         id: string;
-        entities: string[];
       }>;
     }>;
   };

@@ -20,6 +20,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"github.com/apache/incubator-devlake/helpers/pluginhelper/services"
 	"net/http"
 	"strings"
 
@@ -172,7 +173,7 @@ func TestConnection(input *plugin.ApiResourceInput) (*plugin.ApiResourceOutput, 
 			success = len(missingPubPerms) == 0
 			if !success {
 				messages = append(messages, fmt.Sprintf(
-					"%s is/are required to collect data from Public Repos",
+					"Please check the field(s) %s",
 					strings.Join(missingPubPerms, ", "),
 				))
 			}
@@ -180,8 +181,13 @@ func TestConnection(input *plugin.ApiResourceInput) (*plugin.ApiResourceOutput, 
 			missingPriPerms := findMissingPerms(userPerms, privatePermissions)
 			warning = len(missingPriPerms) > 0
 			if warning {
+				msgFmt := "If you want to collect private repositories, please check the field(s) %s"
+				if success {
+					// @Startrekzky and @yumengwang03 firmly believe that this is critical for users to understand the message
+					msgFmt = "This token is able to collect public repositories. " + msgFmt
+				}
 				messages = append(messages, fmt.Sprintf(
-					"%s is/are required to collect data from Private Repos",
+					msgFmt,
 					strings.Join(missingPriPerms, ", "),
 				))
 			}
@@ -237,6 +243,7 @@ func PatchConnection(input *plugin.ApiResourceInput) (*plugin.ApiResourceOutput,
 // @Tags plugins/github
 // @Success 200  {object} models.GithubConnection
 // @Failure 400  {string} errcode.Error "Bad Request"
+// @Failure 409  {object} services.BlueprintProjectPairs "References exist to this connection"
 // @Failure 500  {string} errcode.Error "Internal Error"
 // @Router /plugins/github/connections/{connectionId} [DELETE]
 func DeleteConnection(input *plugin.ApiResourceInput) (*plugin.ApiResourceOutput, errors.Error) {
@@ -245,7 +252,11 @@ func DeleteConnection(input *plugin.ApiResourceInput) (*plugin.ApiResourceOutput
 	if err != nil {
 		return nil, err
 	}
-	err = connectionHelper.Delete(connection)
+	var refs *services.BlueprintProjectPairs
+	refs, err = connectionHelper.Delete(connection)
+	if err != nil {
+		return &plugin.ApiResourceOutput{Body: refs, Status: err.GetType().GetHttpCode()}, err
+	}
 	return &plugin.ApiResourceOutput{Body: connection}, err
 }
 
