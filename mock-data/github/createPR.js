@@ -43,6 +43,7 @@ const TYPES = {
 
 async function main() {
     try {
+        const fileStream = fs.createWriteStream('output-pr.sql');
         const createdDate = new Date(2023, 0, 23, 11, 9, 20, 916);
         const mergeDate = new Date(2023, 0, 27, 11, 11, 20, 916);
 
@@ -86,8 +87,6 @@ async function main() {
 
         const creatorId = await question('Enter your creator id ["id" from "_tool_github_accounts" like "8603391"] ', defaultUserId); // eg. "1"
         const creatorName = await question('Enter your creator name ["name" from "_tool_github_accounts"] ', defaultUser); // eg. "John Doe"
-
-        const fileStream = fs.createWriteStream('pr-output.txt');
 
         const boardCols = 'id, created_at, updated_at, _raw_data_params, _raw_data_table, _raw_data_id, _raw_data_remark, name, description, url, created_date, type';
         const repoCols = 'id, created_at, updated_at, _raw_data_params, _raw_data_table, _raw_data_id, _raw_data_remark, name, url, description, owner_id, language, forked_from, created_date, updated_date, deleted';
