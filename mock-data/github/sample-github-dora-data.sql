@@ -232,6 +232,33 @@ values ('github:GithubIssue:1:178885061064','2023-4-23 14:1:30.0','2023-4-23 14:
 INSERT INTO board_issues (board_id, issue_id, created_at, updated_at, _raw_data_params, _raw_data_table, _raw_data_id, _raw_data_remark)
 values ('github:GithubRepo:1:57135124','github:GithubIssue:1:178885061064','2023-4-24 12:9:20.0','2023-4-24 12:9:20.0','{"ConnectionId":1,"Name":"githubuser/newrepo"}','_raw_github_graphql_issues','46','DELETE_THIS');
 
+-- #4 (non-incident)
+INSERT INTO cicd_deployment_commits (id,created_at,updated_at,_raw_data_params,_raw_data_table,_raw_data_id,_raw_data_remark,cicd_scope_id,cicd_deployment_id,name,result,status,environment,created_date,started_date,finished_date,duration_sec,commit_sha,ref_name,repo_id,repo_url,prev_success_deployment_commit_id)
+values ('github:GithubRun:1:57135124:5180099994:https://github.com/githubuser/newrepo','2023-6-24 12:9:20.0','2023-6-24 12:9:20.0','{"ConnectionId":1,"Name":"githubuser/newrepo"}','_raw_github_api_runs',112,'DELETE_THIS','github:GithubRepo:1:57135124','github:GithubRun:1:57135124:5180099994','pages build and deployment','SUCCESS','DONE','PRODUCTION','2023-6-24 12:9:20.0','2023-6-24 12:9:20.0','2023-6-24 12:30:10.0',1250,'alskwerejwrwklwkjerlkwjer','master','github:GithubRepo:1:57135124','https://github.com/githubuser/newrepo','');
+
+INSERT INTO project_issue_metrics (id,created_at,updated_at,_raw_data_params,_raw_data_table,_raw_data_id,_raw_data_remark,project_name,deployment_id)
+values ('github:GithubIssue:1:178882261073','2023-6-24 12:9:20.0','2023-6-24 12:9:20.0','','',1,'DELETE_THIS','github_proj','github:GithubRun:1:57135124:5180099994');
+
+INSERT INTO issues (id, created_at, updated_at, _raw_data_params, _raw_data_table, _raw_data_id, _raw_data_remark, url, icon_url, issue_key, title, description, epic_key, type, status, original_status, resolution_date, created_date, updated_date, parent_issue_id, priority, original_estimate_minutes, time_spent_minutes, time_remaining_minutes, creator_id, creator_name, assignee_id, assignee_name, severity, component, lead_time_minutes, original_project, original_type, story_point )
+values ('github:GithubIssue:1:178882261073','2023-6-23 14:1:30.0','2023-6-23 14:1:30.0','{"ConnectionId":1,"Name":"githubuser/newrepo"}','_raw_github_graphql_issues','46','DELETE_THIS','https://github.com/githubuser/newrepo/issues/github:GithubIssue:1:178882261073','','21162','title','desc','DELETE_THIS','','DONE','CLOSED','2023-6-24 12:31:10.0','2023-6-23 14:1:30.0','2023-6-23 14:1:30.0','','',0,0,0,'github:GithubAccount:1:888881','githubuser3','github:GithubAccount:1:0','','','',1349,'','',0);
+
+INSERT INTO board_issues (board_id, issue_id, created_at, updated_at, _raw_data_params, _raw_data_table, _raw_data_id, _raw_data_remark)
+values ('github:GithubRepo:1:57135124','github:GithubIssue:1:178882261073','2023-6-24 12:9:20.0','2023-6-24 12:9:20.0','{"ConnectionId":1,"Name":"githubuser/newrepo"}','_raw_github_graphql_issues','46','DELETE_THIS');
+
+-- #5 (incident)
+INSERT INTO cicd_deployment_commits (id,created_at,updated_at,_raw_data_params,_raw_data_table,_raw_data_id,_raw_data_remark,cicd_scope_id,cicd_deployment_id,name,result,status,environment,created_date,started_date,finished_date,duration_sec,commit_sha,ref_name,repo_id,repo_url,prev_success_deployment_commit_id)
+values ('github:GithubRun:1:57135124:5180100001:https://github.com/githubuser/newrepo','2023-6-24 12:9:20.0','2023-6-24 12:9:20.0','{"ConnectionId":1,"Name":"githubuser/newrepo"}','_raw_github_api_runs',119,'DELETE_THIS','github:GithubRepo:1:57135124','github:GithubRun:1:57135124:5180100001','pages build and deployment','SUCCESS','DONE','PRODUCTION','2023-6-24 12:9:20.0','2023-6-24 12:9:20.0','2023-6-24 12:30:10.0',1250,'alskwerejwrwklwkjerlkwjer','master','github:GithubRepo:1:57135124','https://github.com/githubuser/newrepo','');
+
+INSERT INTO project_issue_metrics (id,created_at,updated_at,_raw_data_params,_raw_data_table,_raw_data_id,_raw_data_remark,project_name,deployment_id)
+values ('github:GithubIssue:1:178882261080','2023-6-24 12:9:20.0','2023-6-24 12:9:20.0','','',1,'DELETE_THIS','github_proj','github:GithubRun:1:57135124:5180100001');
+
+INSERT INTO issues (id, created_at, updated_at, _raw_data_params, _raw_data_table, _raw_data_id, _raw_data_remark, url, icon_url, issue_key, title, description, epic_key, type, status, original_status, resolution_date, created_date, updated_date, parent_issue_id, priority, original_estimate_minutes, time_spent_minutes, time_remaining_minutes, creator_id, creator_name, assignee_id, assignee_name, severity, component, lead_time_minutes, original_project, original_type, story_point )
+values ('github:GithubIssue:1:178882261080','2023-6-23 14:1:30.0','2023-6-23 14:1:30.0','{"ConnectionId":1,"Name":"githubuser/newrepo"}','_raw_github_graphql_issues','46','DELETE_THIS','https://github.com/githubuser/newrepo/issues/github:GithubIssue:1:178882261080','','21169','title','desc','DELETE_THIS','INCIDENT','DONE','CLOSED','2023-6-24 12:31:10.0','2023-6-23 14:1:30.0','2023-6-23 14:1:30.0','','',0,0,0,'github:GithubAccount:1:888881','githubuser3','github:GithubAccount:1:0','','','',1349,'','',0);
+
+INSERT INTO board_issues (board_id, issue_id, created_at, updated_at, _raw_data_params, _raw_data_table, _raw_data_id, _raw_data_remark)
+values ('github:GithubRepo:1:57135124','github:GithubIssue:1:178882261080','2023-6-24 12:9:20.0','2023-6-24 12:9:20.0','{"ConnectionId":1,"Name":"githubuser/newrepo"}','_raw_github_graphql_issues','46','DELETE_THIS');
+
+
 -- Median Lead Time
 INSERT INTO cicd_deployment_commits (id,created_at,updated_at,_raw_data_params,_raw_data_table,_raw_data_id,_raw_data_remark,cicd_scope_id,cicd_deployment_id,name,result,status,environment,created_date,started_date,finished_date,duration_sec,commit_sha,ref_name,repo_id,repo_url,prev_success_deployment_commit_id)
 values ('github:GithubRun:1:57135124:6080032383:https://github.com/githubuser/newrepo','2023-5-20 12:9:20.0','2023-5-20 12:9:20.0','{"ConnectionId":1,"Name":"githubuser/newrepo"}','_raw_github_api_runs',201,'DELETE_THIS','github:GithubRepo:1:57135124','github:GithubRun:1:57135124:6080032383','pages build and deployment','SUCCESS','DONE','PRODUCTION','2023-5-20 12:9:20.0','2023-5-20 12:9:20.0','2023-5-24 12:30:10.0',346850,'alskwerejwrwklwkjerlkwjer','master','github:GithubRepo:1:57135124','https://github.com/githubuser/newrepo','');
